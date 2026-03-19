@@ -1,12 +1,15 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
+import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { colors } from '@/src/theme/colors';
 
 export default function SellerDashboardScreen() {
   const { profile } = useAuth();
+  const incompleteProfile = !profile?.full_name || !profile?.phone || !profile?.whatsapp_number;
 
   return (
     <Screen>
@@ -20,6 +23,18 @@ export default function SellerDashboardScreen() {
             Leads, listings, reminders, and operations will live here as the seller experience expands.
           </AppText>
         </View>
+
+        {incompleteProfile ? (
+          <AppCard>
+            <View style={styles.banner}>
+              <AppText style={styles.bannerTitle}>Complete your seller profile</AppText>
+              <AppText style={styles.bannerText}>
+                Add your phone and WhatsApp details so leads, inquiries, and notifications work properly.
+              </AppText>
+              <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+            </View>
+          </AppCard>
+        ) : null}
 
         <View style={styles.grid}>
           <AppCard>
@@ -38,7 +53,7 @@ export default function SellerDashboardScreen() {
 
           <AppCard>
             <View style={styles.metricCard}>
-              <AppText style={styles.metricLabel}>Unread Messages</AppText>
+              <AppText style={styles.metricLabel}>Viewing Requests</AppText>
               <AppText style={styles.metricValue}>0</AppText>
             </View>
           </AppCard>
@@ -69,6 +84,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
+    lineHeight: 22,
+    color: colors.textMuted,
+  },
+  banner: {
+    gap: 10,
+  },
+  bannerTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  bannerText: {
+    fontSize: 14,
     lineHeight: 22,
     color: colors.textMuted,
   },

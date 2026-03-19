@@ -12,6 +12,19 @@ type CompleteOnboardingInput = {
   whatsappNumber?: string;
 };
 
+type UpdateProfileInput = {
+  fullName: string;
+  phone: string;
+  whatsappNumber?: string;
+  activeMode: 'buyer' | 'seller';
+  sellerType?: 'landlord' | 'agent';
+  preferredLocations?: string;
+  budgetMin?: string;
+  budgetMax?: string;
+  propertyInterestType?: string;
+  companyName?: string;
+};
+
 type AuthContextValue = {
   session: Session | null;
   user: User | null;
@@ -21,11 +34,18 @@ type AuthContextValue = {
   hasSellerAccess: boolean;
   refreshProfile: () => Promise<void>;
   completeOnboarding: (input: CompleteOnboardingInput) => Promise<void>;
+  updateProfile: (input: UpdateProfileInput) => Promise<void>;
   setActiveMode: (mode: ActiveMode) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+function toNullableNumber(value?: string) {
+  if (!value || !value.trim()) return null;
+  const parsed = Number(value.replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -50,13 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         supabase.from('user_roles').select('role').eq('user_id', nextUser.id),
       ]);
 
-    if (profileError) {
-      throw profileError;
-    }
-
-    if (rolesError) {
-      throw rolesError;
-    }
+    if (profileError) throw profileError;
+    if (rolesError) throw rolesError;
 
     setProfile((profileData as Profile | null) ?? null);
     setRoles(((rolesData ?? []).map((item) => item.role) as UserRole[]) ?? []);
@@ -67,29 +82,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadUserData(session.user);
   }
 
-  async function completeOnboarding(input: CompleteOnboardingInput) {
+  async function updateProfile(input: UpdateProfileInput) {
     if (!session?.user) {
       throw new Error('No authenticated user found.');
     }
 
-    const baseRoles = new Set<UserRole>(roles.length ? roles : ['buyer']);
-    baseRoles.add('buyer');
+    const roleSet = new Set<UserRole>(roles.length ? roles : ['buyer']);
+    roleSet.add('buyer');
 
-    if (input.activeMode === 'seller' && input.sellerType) {
-      baseRoles.add(input.sellerType);
+    const chosenSellerType = input.sellerType ?? profile?.seller_type ?? undefined;
+
+    if (input.activeMode === 'seller' && !chosenSellerType) {
+      throw new Error('Select whether you are a landlord or an agent.');
     }
 
-    const primaryRole: UserRole =
-      input.activeMode === 'seller' && input.sellerType ? input.sellerType : 'buyer';
+    if (chosenSellerType) {
+      roleSet.add(chosenSellerType);
+    }
 
     const { error: profileError } = await supabase.from('profiles').upsert(
       {
         id: session.user.id,
         email: session.user.email ?? null,
-        full_name: input.fullName,
-        phone: input.phone,
-        whatsapp_number: input.activeMode === 'seller' ? input.whatsappNumber ?? null : null,
+        full_name: input.fullName.trim(),
+        phone: input.phone.trim(),
+        whatsapp_number: input.whatsappNumber?.trim() || null,
         active_mode: input.activeMode,
+        seller_type: chosenSellerType ?? null,
+        preferred_locations: input.preferredLocations?.trim() || null,
+        budget_min: toNullableNumber(input.budgetMin),
+        budget_max: toNullableNumber(input.budgetMax),
+        property_interest_type: input.propertyInterestType?.trim() || null,
+        company_name: input.companyName?.trim() || null,
         onboarding_completed: true,
         onboarding_step: 'done',
       },
@@ -102,7 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     await supabase.from('user_roles').update({ is_primary: false }).eq('user_id', session.user.id);
 
-    const roleRows = Array.from(baseRoles).map((role) => ({
+    const primaryRole: UserRole =
+      input.activeMode === 'seller' && chosenSellerType ? chosenSellerType : 'buyer';
+
+    const roleRows = Array.from(roleSet).map((role) => ({
       user_id: session.user!.id,
       role,
       is_primary: role === primaryRole,
@@ -117,6 +144,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     await refreshProfile();
+  }
+
+  async function completeOnboarding(input: CompleteOnboardingInput) {
+    await updateProfile({
+      activeMode: input.activeMode,
+      sellerType: input.sellerType,
+      fullName: input.fullName,
+      phone: input.phone,
+      whatsappNumber: input.whatsappNumber,
+    });
   }
 
   async function setActiveMode(mode: ActiveMode) {
@@ -204,6 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasSellerAccess,
       refreshProfile,
       completeOnboarding,
+      updateProfile,
       setActiveMode,
       signOut: async () => {
         await supabase.auth.signOut();

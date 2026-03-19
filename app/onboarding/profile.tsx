@@ -2,6 +2,7 @@ import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-nat
 import { useMemo, useState } from 'react';
 import { router } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
+import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppInput } from '@/src/components/ui/AppInput';
@@ -57,13 +58,7 @@ export default function OnboardingProfileScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <AppText style={styles.eyebrow}>Step 2 of 2</AppText>
-          <AppText style={styles.title}>Complete your profile</AppText>
-          <AppText style={styles.subtitle}>
-            We use this to personalize your mode, dashboard, and communication flow.
-          </AppText>
-        </View>
+        <AppHeader title="Complete your profile" subtitle="Step 2 of 2" />
 
         <AppCard>
           <View style={styles.form}>
@@ -138,26 +133,6 @@ const styles = StyleSheet.create({
   container: {
     padding: 24,
     gap: 20,
-  },
-  header: {
-    gap: 8,
-    marginTop: 10,
-  },
-  eyebrow: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  title: {
-    fontSize: 30,
-    lineHeight: 38,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.textMuted,
   },
   form: {
     gap: 16,

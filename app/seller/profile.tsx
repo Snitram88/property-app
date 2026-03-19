@@ -36,14 +36,17 @@ export default function SellerProfileScreen() {
         <AppCard>
           <View style={styles.section}>
             <AppText style={styles.name}>{profile?.full_name ?? 'Your seller account'}</AppText>
-            <AppText>{user?.email ?? 'No email available'}</AppText>
+            <AppText>{user?.email ? `Email: ${user.email}` : 'No email available'}</AppText>
             <AppText>Phone: {profile?.phone ?? 'Not set yet'}</AppText>
             <AppText>WhatsApp: {profile?.whatsapp_number ?? 'Not set yet'}</AppText>
+            <AppText>Seller type: {profile?.seller_type ?? 'Not set yet'}</AppText>
+            <AppText>Company: {profile?.company_name ?? 'Not set yet'}</AppText>
             <AppText>Roles: {roles.length ? roles.map(formatRole).join(', ') : 'Buyer'}</AppText>
             <AppText>Current mode: Seller</AppText>
           </View>
         </AppCard>
 
+        <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
         <AppButton title="Switch to Buyer Mode" onPress={switchToBuyer} />
         <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />
       </View>

@@ -12,6 +12,13 @@ export type Profile = {
   active_mode: ActiveMode;
   onboarding_completed: boolean;
   onboarding_step: OnboardingStep;
+  seller_type: 'landlord' | 'agent' | null;
+  preferred_locations: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
+  property_interest_type: string | null;
+  company_name: string | null;
+  notification_preferences: Record<string, any> | null;
   created_at: string;
   updated_at: string;
 };

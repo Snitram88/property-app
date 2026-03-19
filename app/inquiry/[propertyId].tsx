@@ -2,6 +2,7 @@ import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-nat
 import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
+import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppInput } from '@/src/components/ui/AppInput';
@@ -90,13 +91,10 @@ export default function InquiryComposerScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <AppText style={styles.eyebrow}>Inquiry Composer</AppText>
-          <AppText style={styles.title}>Contact owner</AppText>
-          <AppText style={styles.subtitle}>
-            {property?.title ?? 'Property inquiry'}
-          </AppText>
-        </View>
+        <AppHeader
+          title="Contact Owner"
+          subtitle={property?.title ?? 'Property inquiry'}
+        />
 
         <AppCard>
           <View style={styles.form}>
@@ -142,8 +140,6 @@ export default function InquiryComposerScreen() {
               onChangeText={setMessage}
               placeholder="Write your message"
               multiline
-              numberOfLines={5}
-              style={styles.messageInput}
             />
           </View>
         </AppCard>
@@ -164,23 +160,6 @@ const styles = StyleSheet.create({
   container: {
     padding: 24,
     gap: 20,
-  },
-  header: {
-    gap: 8,
-  },
-  eyebrow: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: colors.textMuted,
   },
   form: {
     gap: 16,
@@ -217,11 +196,6 @@ const styles = StyleSheet.create({
   },
   optionTextActive: {
     color: colors.white,
-  },
-  messageInput: {
-    minHeight: 120,
-    textAlignVertical: 'top',
-    paddingTop: 14,
   },
   actions: {
     gap: 12,

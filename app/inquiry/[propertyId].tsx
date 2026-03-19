@@ -1,5 +1,5 @@
 import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
@@ -7,39 +7,52 @@ import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
-import { mockProperties } from '@/src/constants/mockProperties';
 import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { supabase } from '@/src/lib/supabase/client';
+import { DatabaseProperty, fetchPropertyById } from '@/src/lib/properties/live-properties';
 
 export default function InquiryComposerScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { user, profile } = useAuth();
-
-  const property = useMemo(
-    () => mockProperties.find((item) => item.id === propertyId),
-    [propertyId]
-  );
+  const [property, setProperty] = useState<DatabaseProperty | null>(null);
 
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
   const [preferredContact, setPreferredContact] = useState<'phone' | 'whatsapp' | 'email'>('phone');
-  const [message, setMessage] = useState(
-    property?.title
-      ? `Hello, I’m interested in ${property.title}. Please share more details.`
-      : 'Hello, I’m interested in this property. Please share more details.'
-  );
+  const [message, setMessage] = useState('Hello, I’m interested in this property. Please share more details.');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (profile?.full_name) {
-      setFullName(profile.full_name);
+    if (profile?.full_name) setFullName(profile.full_name);
+    if (profile?.phone) setPhone(profile.phone);
+  }, [profile?.full_name, profile?.phone]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProperty() {
+      if (!propertyId) return;
+
+      try {
+        const data = await fetchPropertyById(propertyId);
+        if (active) {
+          setProperty(data);
+          if (data?.title) {
+            setMessage(`Hello, I’m interested in ${data.title}. Please share more details.`);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load inquiry property:', error);
+      }
     }
 
-    if (profile?.phone) {
-      setPhone(profile.phone);
-    }
-  }, [profile?.full_name, profile?.phone]);
+    loadProperty();
+
+    return () => {
+      active = false;
+    };
+  }, [propertyId]);
 
   async function submitInquiry() {
     if (!fullName.trim() || !phone.trim() || !message.trim()) {
@@ -47,41 +60,31 @@ export default function InquiryComposerScreen() {
       return;
     }
 
+    if (!property?.id || !property.owner_id) {
+      Alert.alert('Unavailable', 'This property is not ready for inquiries yet.');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
-      const { data: liveProperty } = await supabase
-        .from('properties')
-        .select('id, owner_id')
-        .eq('id', propertyId)
-        .maybeSingle();
+      const composedMessage = `${message.trim()}\n\nPreferred contact: ${preferredContact}`;
 
-      if (liveProperty?.id && liveProperty?.owner_id) {
-        const composedMessage = `${message.trim()}\n\nPreferred contact: ${preferredContact}`;
+      const { error } = await supabase.from('inquiries').insert({
+        property_id: property.id,
+        landlord_id: property.owner_id,
+        sender_name: fullName.trim(),
+        sender_email: user?.email ?? null,
+        sender_phone: phone.trim(),
+        message: composedMessage,
+      });
 
-        const { error } = await supabase.from('inquiries').insert({
-          property_id: liveProperty.id,
-          landlord_id: liveProperty.owner_id,
-          sender_name: fullName.trim(),
-          sender_email: user?.email ?? null,
-          sender_phone: phone.trim(),
-          message: composedMessage,
-        });
-
-        if (error) {
-          Alert.alert('Inquiry failed', error.message);
-          return;
-        }
-
-        Alert.alert('Inquiry sent', 'Your message has been sent to the seller dashboard.');
-        router.replace('/buyer/messages');
+      if (error) {
+        Alert.alert('Inquiry failed', error.message);
         return;
       }
 
-      Alert.alert(
-        'Inquiry composer ready',
-        'You just used the new premium inquiry flow. Live delivery activates when listings are connected to the database.'
-      );
+      Alert.alert('Inquiry sent', 'Your message has been sent to the seller dashboard.');
       router.replace('/buyer/messages');
     } finally {
       setSubmitting(false);

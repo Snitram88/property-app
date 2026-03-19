@@ -18,6 +18,8 @@ export default function RootLayout() {
           <Stack.Screen name="inquiry/[propertyId]" options={{ presentation: 'modal' }} />
           <Stack.Screen name="viewing/[propertyId]" options={{ presentation: 'modal' }} />
           <Stack.Screen name="profile/edit" />
+          <Stack.Screen name="listing/create" />
+          <Stack.Screen name="listing/edit/[id]" />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>

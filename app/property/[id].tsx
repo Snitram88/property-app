@@ -7,39 +7,51 @@ import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
-import { mockProperties } from '@/src/constants/mockProperties';
 import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
+import {
+  DatabaseProperty,
+  fetchPropertyById,
+  formatPrice,
+  propertyToSnapshot,
+} from '@/src/lib/properties/live-properties';
 
 export default function PropertyDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const property = mockProperties.find((item) => item.id === id);
+  const [property, setProperty] = useState<DatabaseProperty | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let active = true;
 
-    async function loadState() {
-      if (!user?.id || !property?.id) return;
+    async function loadProperty() {
+      if (!id) return;
 
       try {
-        const refs = await fetchSavedPropertyRefs(user.id);
+        const item = await fetchPropertyById(id);
         if (active) {
-          setSaved(refs.has(property.id));
+          setProperty(item);
+        }
+
+        if (user?.id && item?.id) {
+          const refs = await fetchSavedPropertyRefs(user.id);
+          if (active) {
+            setSaved(refs.has(item.id));
+          }
         }
       } catch (error) {
-        console.error('Failed to load save state:', error);
+        console.error('Failed to load property details:', error);
       }
     }
 
-    loadState();
+    loadProperty();
 
     return () => {
       active = false;
     };
-  }, [user?.id, property?.id]);
+  }, [id, user?.id]);
 
   async function handleSave() {
     if (!user?.id || !property) {
@@ -48,15 +60,7 @@ export default function PropertyDetailsScreen() {
     }
 
     try {
-      const next = await toggleSavedProperty(user.id, {
-        id: property.id,
-        title: property.title,
-        location: property.location,
-        price: property.price,
-        badge: property.badge,
-        listingType: property.listingType,
-      });
-
+      const next = await toggleSavedProperty(user.id, propertyToSnapshot(property));
       setSaved(next);
     } catch (error: any) {
       Alert.alert('Save failed', error?.message ?? 'Please try again.');
@@ -68,7 +72,7 @@ export default function PropertyDetailsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <AppHeader
           title="Property Details"
-          subtitle={property?.location ?? 'Premium listing details'}
+          subtitle={property?.location_text ?? 'Live listing'}
           rightSlot={
             <Pressable style={styles.saveIconButton} onPress={handleSave}>
               <Ionicons
@@ -84,20 +88,29 @@ export default function PropertyDetailsScreen() {
 
         <AppCard>
           <View style={styles.content}>
-            <AppText style={styles.price}>{property?.price ?? 'Price on request'}</AppText>
+            <AppText style={styles.price}>
+              {property
+                ? property.listing_type === 'sale'
+                  ? formatPrice(property.price)
+                  : `${formatPrice(property.price)} / year`
+                : 'Price on request'}
+            </AppText>
             <AppText style={styles.meta}>
-              {property?.beds ?? 0} beds • {property?.baths ?? 0} baths • {property?.listingType ?? 'Listing'}
+              {property?.bedrooms ?? 0} beds • {property?.bathrooms ?? 0} baths • {property?.listing_type ?? 'listing'}
             </AppText>
             <AppText style={styles.description}>
-              {property?.description ??
-                'A premium property detail experience with media, features, agent trust signals, and inquiry actions.'}
+              {property?.description ?? 'This listing will display its live property details here.'}
             </AppText>
           </View>
         </AppCard>
 
         <View style={styles.actions}>
           <AppButton title="Contact Owner" onPress={() => router.push(`/inquiry/${id}`)} />
-          <AppButton title="Schedule Viewing" variant="secondary" onPress={() => router.push(`/viewing/${id}`)} />
+          <AppButton
+            title="Schedule Viewing"
+            variant="secondary"
+            onPress={() => router.push(`/viewing/${id}`)}
+          />
         </View>
       </ScrollView>
     </Screen>
@@ -135,6 +148,7 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 14,
     color: colors.textMuted,
+    textTransform: 'capitalize',
   },
   description: {
     fontSize: 15,

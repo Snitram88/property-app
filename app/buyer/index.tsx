@@ -6,33 +6,44 @@ import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
-import { mockProperties } from '@/src/constants/mockProperties';
 import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
+import {
+  DatabaseProperty,
+  fetchPublishedProperties,
+  formatPrice,
+  propertyToSnapshot,
+} from '@/src/lib/properties/live-properties';
 
 export default function BuyerHomeScreen() {
   const { profile, user } = useAuth();
   const [savedRefs, setSavedRefs] = useState<Set<string>>(new Set());
+  const [properties, setProperties] = useState<DatabaseProperty[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      async function loadSaved() {
-        if (!user?.id) return;
-
+      async function loadData() {
         try {
-          const refs = await fetchSavedPropertyRefs(user.id);
+          const published = await fetchPublishedProperties();
           if (active) {
-            setSavedRefs(refs);
+            setProperties(published);
+          }
+
+          if (user?.id) {
+            const refs = await fetchSavedPropertyRefs(user.id);
+            if (active) {
+              setSavedRefs(refs);
+            }
           }
         } catch (error) {
-          console.error('Failed to load saved properties:', error);
+          console.error('Failed to load discover feed:', error);
         }
       }
 
-      loadSaved();
+      loadData();
 
       return () => {
         active = false;
@@ -40,28 +51,22 @@ export default function BuyerHomeScreen() {
     }, [user?.id])
   );
 
-  async function handleToggleSave(property: (typeof mockProperties)[number]) {
+  async function handleToggleSave(property: DatabaseProperty) {
     if (!user?.id) {
       Alert.alert('Sign in required', 'Please sign in to save properties.');
       return;
     }
 
     try {
-      const saved = await toggleSavedProperty(user.id, {
-        id: property.id,
-        title: property.title,
-        location: property.location,
-        price: property.price,
-        badge: property.badge,
-        listingType: property.listingType,
-      });
-
+      const saved = await toggleSavedProperty(user.id, propertyToSnapshot(property));
       const next = new Set(savedRefs);
+
       if (saved) {
         next.add(property.id);
       } else {
         next.delete(property.id);
       }
+
       setSavedRefs(next);
     } catch (error: any) {
       Alert.alert('Save failed', error?.message ?? 'Please try again.');
@@ -79,7 +84,7 @@ export default function BuyerHomeScreen() {
             Welcome{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}.
           </AppText>
           <AppText style={styles.subtitle}>
-            Discover curated listings and contact owners through a cleaner premium flow.
+            Discover live listings, save favorites, contact owners, and schedule viewings.
           </AppText>
         </View>
 
@@ -96,42 +101,59 @@ export default function BuyerHomeScreen() {
         ) : null}
 
         <View style={styles.list}>
-          {mockProperties.map((property) => {
-            const isSaved = savedRefs.has(property.id);
+          {properties.length === 0 ? (
+            <AppCard>
+              <View style={styles.banner}>
+                <AppText style={styles.bannerTitle}>No live listings yet</AppText>
+                <AppText style={styles.bannerText}>
+                  Once sellers publish properties, the live marketplace will appear here.
+                </AppText>
+              </View>
+            </AppCard>
+          ) : (
+            properties.map((property) => {
+              const isSaved = savedRefs.has(property.id);
 
-            return (
-              <AppCard key={property.id}>
-                <View style={styles.cardContent}>
-                  <View style={styles.badgeRow}>
-                    <AppText style={styles.badge}>{property.badge}</AppText>
+              return (
+                <AppCard key={property.id}>
+                  <View style={styles.cardContent}>
+                    <View style={styles.badgeRow}>
+                      <AppText style={styles.badge}>
+                        {property.verification_status === 'approved' ? 'Verified' : 'Live'}
+                      </AppText>
 
-                    <Pressable style={styles.saveButton} onPress={() => handleToggleSave(property)}>
-                      <Ionicons
-                        name={isSaved ? 'heart' : 'heart-outline'}
-                        size={18}
-                        color={isSaved ? '#DC2626' : colors.text}
+                      <Pressable style={styles.saveButton} onPress={() => handleToggleSave(property)}>
+                        <Ionicons
+                          name={isSaved ? 'heart' : 'heart-outline'}
+                          size={18}
+                          color={isSaved ? '#DC2626' : colors.text}
+                        />
+                        <AppText style={styles.saveText}>{isSaved ? 'Saved' : 'Save'}</AppText>
+                      </Pressable>
+                    </View>
+
+                    <AppText style={styles.cardTitle}>{property.title}</AppText>
+                    <AppText style={styles.price}>
+                      {property.listing_type === 'sale'
+                        ? formatPrice(property.price)
+                        : `${formatPrice(property.price)} / year`}
+                    </AppText>
+                    <AppText style={styles.location}>{property.location_text}</AppText>
+                    <AppText style={styles.meta}>
+                      {property.bedrooms} beds • {property.bathrooms} baths • {property.listing_type}
+                    </AppText>
+
+                    <View style={styles.cardActions}>
+                      <AppButton
+                        title="View Property"
+                        onPress={() => router.push(`/property/${property.id}`)}
                       />
-                      <AppText style={styles.saveText}>{isSaved ? 'Saved' : 'Save'}</AppText>
-                    </Pressable>
+                    </View>
                   </View>
-
-                  <AppText style={styles.cardTitle}>{property.title}</AppText>
-                  <AppText style={styles.price}>{property.price}</AppText>
-                  <AppText style={styles.location}>{property.location}</AppText>
-                  <AppText style={styles.meta}>
-                    {property.beds} beds • {property.baths} baths • {property.listingType}
-                  </AppText>
-
-                  <View style={styles.cardActions}>
-                    <AppButton
-                      title="View Property"
-                      onPress={() => router.push(`/property/${property.id}`)}
-                    />
-                  </View>
-                </View>
-              </AppCard>
-            );
-          })}
+                </AppCard>
+              );
+            })
+          )}
         </View>
       </ScrollView>
     </Screen>
@@ -218,6 +240,7 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 13,
     color: colors.textMuted,
+    textTransform: 'capitalize',
   },
   cardActions: {
     gap: 10,

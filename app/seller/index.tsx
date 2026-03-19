@@ -1,15 +1,48 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { router } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { colors } from '@/src/theme/colors';
+import { fetchSellerStats } from '@/src/lib/properties/live-properties';
+import { router } from 'expo-router';
 
 export default function SellerDashboardScreen() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const incompleteProfile = !profile?.full_name || !profile?.phone || !profile?.whatsapp_number;
+  const [stats, setStats] = useState({
+    propertyCount: 0,
+    inquiryCount: 0,
+    viewingCount: 0,
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+
+      async function loadStats() {
+        if (!user?.id) return;
+
+        try {
+          const next = await fetchSellerStats(user.id);
+          if (active) {
+            setStats(next);
+          }
+        } catch (error) {
+          console.error('Failed to load seller stats:', error);
+        }
+      }
+
+      loadStats();
+
+      return () => {
+        active = false;
+      };
+    }, [user?.id])
+  );
 
   return (
     <Screen>
@@ -20,7 +53,7 @@ export default function SellerDashboardScreen() {
             Dashboard{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}
           </AppText>
           <AppText style={styles.subtitle}>
-            Leads, listings, reminders, and operations will live here as the seller experience expands.
+            Live inventory, incoming buyer leads, and viewing requests now flow through this dashboard.
           </AppText>
         </View>
 
@@ -40,21 +73,21 @@ export default function SellerDashboardScreen() {
           <AppCard>
             <View style={styles.metricCard}>
               <AppText style={styles.metricLabel}>Active Listings</AppText>
-              <AppText style={styles.metricValue}>0</AppText>
+              <AppText style={styles.metricValue}>{stats.propertyCount}</AppText>
             </View>
           </AppCard>
 
           <AppCard>
             <View style={styles.metricCard}>
               <AppText style={styles.metricLabel}>New Leads</AppText>
-              <AppText style={styles.metricValue}>0</AppText>
+              <AppText style={styles.metricValue}>{stats.inquiryCount}</AppText>
             </View>
           </AppCard>
 
           <AppCard>
             <View style={styles.metricCard}>
               <AppText style={styles.metricLabel}>Viewing Requests</AppText>
-              <AppText style={styles.metricValue}>0</AppText>
+              <AppText style={styles.metricValue}>{stats.viewingCount}</AppText>
             </View>
           </AppCard>
         </View>

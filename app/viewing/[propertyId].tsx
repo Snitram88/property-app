@@ -1,5 +1,5 @@
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
@@ -7,18 +7,14 @@ import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
-import { mockProperties } from '@/src/constants/mockProperties';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { supabase } from '@/src/lib/supabase/client';
+import { DatabaseProperty, fetchPropertyById } from '@/src/lib/properties/live-properties';
 
 export default function ScheduleViewingScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { user, profile } = useAuth();
-
-  const property = useMemo(
-    () => mockProperties.find((item) => item.id === propertyId),
-    [propertyId]
-  );
+  const [property, setProperty] = useState<DatabaseProperty | null>(null);
 
   const [preferredDate, setPreferredDate] = useState('');
   const [preferredTime, setPreferredTime] = useState('');
@@ -26,14 +22,37 @@ export default function ScheduleViewingScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadProperty() {
+      if (!propertyId) return;
+
+      try {
+        const data = await fetchPropertyById(propertyId);
+        if (active) {
+          setProperty(data);
+        }
+      } catch (error) {
+        console.error('Failed to load viewing property:', error);
+      }
+    }
+
+    loadProperty();
+
+    return () => {
+      active = false;
+    };
+  }, [propertyId]);
+
   async function handleSubmit() {
     if (!preferredDate.trim() || !preferredTime.trim() || !phone.trim()) {
       Alert.alert('Missing details', 'Date, time, and phone number are required.');
       return;
     }
 
-    if (!user?.id) {
-      Alert.alert('Session issue', 'Please sign in again.');
+    if (!user?.id || !property?.id || !property.owner_id) {
+      Alert.alert('Unavailable', 'This property is not ready for viewings yet.');
       return;
     }
 
@@ -42,8 +61,10 @@ export default function ScheduleViewingScreen() {
 
       const { error } = await supabase.from('viewing_requests').insert({
         user_id: user.id,
-        property_ref: property?.id ?? propertyId,
-        property_title: property?.title ?? 'Property viewing',
+        seller_id: property.owner_id,
+        property_id: property.id,
+        property_ref: property.id,
+        property_title: property.title,
         preferred_date: preferredDate.trim(),
         preferred_time: preferredTime.trim(),
         phone: phone.trim(),
@@ -56,7 +77,7 @@ export default function ScheduleViewingScreen() {
       }
 
       Alert.alert('Viewing scheduled', 'Your viewing request has been recorded.');
-      router.back();
+      router.replace('/buyer/messages');
     } finally {
       setSubmitting(false);
     }
@@ -73,7 +94,7 @@ export default function ScheduleViewingScreen() {
         <AppCard>
           <View style={styles.form}>
             <AppText style={styles.helper}>
-              Ask for a date and time that works for you. This becomes part of the buyer workflow and can later feed seller leads.
+              Ask for a date and time that works for you. This now feeds directly into seller leads.
             </AppText>
 
             <AppInput

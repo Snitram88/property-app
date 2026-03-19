@@ -1,8 +1,9 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
+import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
@@ -53,7 +54,7 @@ export default function SellerLeadsScreen() {
         <AppText style={styles.title}>Leads & Requests</AppText>
 
         <View style={styles.section}>
-          <AppText style={styles.sectionTitle}>Buyer Inquiries</AppText>
+          <AppText style={styles.sectionTitle}>Buyer Conversations</AppText>
 
           {inquiries.length === 0 ? (
             <AppCard>
@@ -74,6 +75,13 @@ export default function SellerLeadsScreen() {
                   <AppText>{item.sender_phone ?? item.sender_email ?? 'No contact info'}</AppText>
                   <AppText>Status: {item.status}</AppText>
                   <AppText>{item.message}</AppText>
+
+                  {item.conversation_id ? (
+                    <AppButton
+                      title="Open Thread"
+                      onPress={() => router.push(`/messages/${item.conversation_id}`)}
+                    />
+                  ) : null}
                 </View>
               </AppCard>
             ))

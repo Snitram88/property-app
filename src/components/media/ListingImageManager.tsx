@@ -20,6 +20,7 @@ function normalizeAsset(asset: ImagePicker.ImagePickerAsset): SelectedListingIma
     uri: asset.uri,
     mimeType: asset.mimeType ?? 'image/jpeg',
     fileName: asset.fileName ?? `image-${Date.now()}.jpg`,
+    base64: asset.base64 ?? null,
     existing: false,
   };
 }
@@ -32,10 +33,12 @@ export function ListingImageManager({
 }: ListingImageManagerProps) {
   async function ensurePermission() {
     const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
     if (!result.granted) {
       Alert.alert('Permission needed', 'Please allow photo library access to upload property images.');
       return false;
     }
+
     return true;
   }
 
@@ -47,6 +50,7 @@ export function ListingImageManager({
       mediaTypes: ['images'],
       quality: 0.8,
       allowsMultipleSelection: false,
+      base64: true,
     });
 
     if (result.canceled || !result.assets?.length) return;
@@ -63,6 +67,7 @@ export function ListingImageManager({
       quality: 0.8,
       allowsMultipleSelection: true,
       selectionLimit: 8,
+      base64: true,
     });
 
     if (result.canceled || !result.assets?.length) return;

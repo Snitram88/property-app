@@ -1,3 +1,5 @@
+import { decode } from 'base64-arraybuffer';
+import * as FileSystem from 'expo-file-system';
 import { supabase } from '@/src/lib/supabase/client';
 
 export type DatabaseProperty = {
@@ -58,6 +60,7 @@ export type SelectedListingImage = {
   uri: string;
   mimeType?: string | null;
   fileName?: string | null;
+  base64?: string | null;
   existing?: boolean;
   image_url?: string | null;
   storage_path?: string | null;
@@ -72,6 +75,7 @@ export type SellerInquiryItem = {
   status: string;
   created_at: string;
   property_id: string;
+  conversation_id: string | null;
   property_title: string;
   property_location: string;
 };
@@ -162,12 +166,23 @@ async function uploadPropertyImage(
     .toString(36)
     .slice(2)}.${ext}`;
 
-  const response = await fetch(image.uri);
-  const blob = await response.blob();
+  let base64String = image.base64 ?? null;
+
+  if (!base64String && image.uri) {
+    base64String = await FileSystem.readAsStringAsync(image.uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
+
+  if (!base64String) {
+    throw new Error('Unable to read selected image data.');
+  }
+
+  const arrayBuffer = decode(base64String);
 
   const { error: uploadError } = await supabase.storage
     .from('property-images')
-    .upload(filePath, blob, {
+    .upload(filePath, arrayBuffer, {
       contentType: image.mimeType ?? 'image/jpeg',
       upsert: false,
     });
@@ -394,7 +409,13 @@ export async function createSellerProperty(
   if (error) throw error;
 
   const property = data as DatabaseProperty;
-  await syncPropertyImages(userId, property.id, coverImage, galleryImages);
+
+  try {
+    await syncPropertyImages(userId, property.id, coverImage, galleryImages);
+  } catch (imageError) {
+    await supabase.from('properties').delete().eq('id', property.id).eq('owner_id', userId);
+    throw imageError;
+  }
 
   return fetchPropertyById(property.id);
 }

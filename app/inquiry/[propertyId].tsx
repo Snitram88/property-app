@@ -9,13 +9,13 @@ import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
 import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { supabase } from '@/src/lib/supabase/client';
-import { DatabaseProperty, fetchPropertyById } from '@/src/lib/properties/live-properties';
+import { PropertyWithMedia, fetchPropertyById } from '@/src/lib/properties/live-properties';
+import { startPropertyConversation } from '@/src/lib/chat/conversations';
 
 export default function InquiryComposerScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { user, profile } = useAuth();
-  const [property, setProperty] = useState<DatabaseProperty | null>(null);
+  const [property, setProperty] = useState<PropertyWithMedia | null>(null);
 
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
@@ -60,32 +60,28 @@ export default function InquiryComposerScreen() {
       return;
     }
 
-    if (!property?.id || !property.owner_id) {
-      Alert.alert('Unavailable', 'This property is not ready for inquiries yet.');
+    if (!property?.id || !property.owner_id || !user?.id) {
+      Alert.alert('Unavailable', 'This property is not ready for conversations yet.');
       return;
     }
 
     try {
       setSubmitting(true);
 
-      const composedMessage = `${message.trim()}\n\nPreferred contact: ${preferredContact}`;
-
-      const { error } = await supabase.from('inquiries').insert({
-        property_id: property.id,
-        landlord_id: property.owner_id,
-        sender_name: fullName.trim(),
-        sender_email: user?.email ?? null,
-        sender_phone: phone.trim(),
-        message: composedMessage,
+      const conversationId = await startPropertyConversation({
+        propertyId: property.id,
+        landlordId: property.owner_id,
+        senderName: fullName.trim(),
+        senderEmail: user.email ?? null,
+        senderPhone: phone.trim(),
+        message: message.trim(),
+        preferredContact,
       });
 
-      if (error) {
-        Alert.alert('Inquiry failed', error.message);
-        return;
-      }
-
-      Alert.alert('Inquiry sent', 'Your message has been sent to the seller dashboard.');
-      router.replace('/buyer/messages');
+      Alert.alert('Conversation started', 'Your message has been sent to the seller.');
+      router.replace(`/messages/${conversationId}`);
+    } catch (error: any) {
+      Alert.alert('Inquiry failed', error?.message ?? 'Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -149,7 +145,7 @@ export default function InquiryComposerScreen() {
 
         <View style={styles.actions}>
           <AppButton
-            title={submitting ? 'Sending...' : 'Send Inquiry'}
+            title={submitting ? 'Sending...' : 'Send Message'}
             onPress={submitInquiry}
           />
           <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />

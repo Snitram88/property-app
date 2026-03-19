@@ -1,9 +1,8 @@
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View, Linking, Platform } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import * as ExpoLinking from 'expo-linking';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
@@ -75,8 +74,22 @@ export default function PropertyDetailsScreen() {
       return;
     }
 
-    const url = `https://www.google.com/maps/search/?api=1&query=${property.latitude},${property.longitude}`;
-    await ExpoLinking.openURL(url);
+    const lat = property.latitude;
+    const lng = property.longitude;
+
+    const url =
+      Platform.OS === 'ios'
+        ? `http://maps.apple.com/?ll=${lat},${lng}`
+        : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
+    const supported = await Linking.canOpenURL(url);
+
+    if (!supported) {
+      Alert.alert('Map unavailable', 'Unable to open map on this device.');
+      return;
+    }
+
+    await Linking.openURL(url);
   }
 
   return (

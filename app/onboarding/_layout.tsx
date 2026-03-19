@@ -3,14 +3,18 @@ import { FullScreenLoader } from '@/src/components/common/FullScreenLoader';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { getHomeRoute } from '@/src/lib/app-routing';
 
-export default function AuthLayout() {
+export default function OnboardingLayout() {
   const { user, profile, roles, loading } = useAuth();
 
   if (loading) {
     return <FullScreenLoader />;
   }
 
-  if (user) {
+  if (!user) {
+    return <Redirect href="/" />;
+  }
+
+  if (profile?.onboarding_completed) {
     return <Redirect href={getHomeRoute(profile, roles)} />;
   }
 

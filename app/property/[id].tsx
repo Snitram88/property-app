@@ -1,46 +1,76 @@
-import { useLocalSearchParams, router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Screen } from '@/src/components/ui/Screen';
-import { AppText } from '@/src/components/ui/AppText';
-import { AppButton } from '@/src/components/ui/AppButton';
 import { AppCard } from '@/src/components/ui/AppCard';
+import { AppButton } from '@/src/components/ui/AppButton';
+import { AppText } from '@/src/components/ui/AppText';
+import { mockProperties } from '@/src/constants/mockProperties';
+import { colors } from '@/src/theme/colors';
 
 export default function PropertyDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const property = mockProperties.find((item) => item.id === id);
 
   return (
     <Screen>
-      <View style={styles.container}>
-        <AppText style={styles.title}>Property Details</AppText>
+      <ScrollView contentContainerStyle={styles.container}>
+        <AppText style={styles.title}>{property?.title ?? 'Property Details'}</AppText>
+        <AppText style={styles.subtitle}>{property?.location ?? 'Premium listing details'}</AppText>
 
         <AppCard>
           <View style={styles.content}>
-            <AppText style={styles.propertyTitle}>Sample Property #{id}</AppText>
-            <AppText>Beautiful property details, media, features, and inquiry action will live here.</AppText>
+            <AppText style={styles.price}>{property?.price ?? 'Price on request'}</AppText>
+            <AppText style={styles.meta}>
+              {property?.beds ?? 0} beds • {property?.baths ?? 0} baths • {property?.listingType ?? 'Listing'}
+            </AppText>
+            <AppText style={styles.description}>
+              {property?.description ??
+                'A premium property detail experience with media, features, agent trust signals, and inquiry actions.'}
+            </AppText>
           </View>
         </AppCard>
 
-        <AppButton title="Contact Owner" onPress={() => router.push('/(tabs)/inbox')} />
-      </View>
+        <View style={styles.actions}>
+          <AppButton title="Contact Owner" onPress={() => router.push(`/inquiry/${id}`)} />
+          <AppButton title="Back to Discover" variant="secondary" onPress={() => router.back()} />
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: 24,
     gap: 16,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
+    fontSize: 30,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  subtitle: {
+    fontSize: 15,
+    color: colors.textMuted,
   },
   content: {
     gap: 10,
   },
-  propertyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+  price: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  meta: {
+    fontSize: 14,
+    color: colors.textMuted,
+  },
+  description: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  actions: {
+    gap: 12,
   },
 });

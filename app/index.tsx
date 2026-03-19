@@ -1,56 +1,100 @@
-import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Redirect, router } from 'expo-router';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
+import { AppCard } from '@/src/components/ui/AppCard';
+import { FullScreenLoader } from '@/src/components/common/FullScreenLoader';
 import { colors } from '@/src/theme/colors';
+import { useAuth } from '@/src/providers/AuthProvider';
+import { getHomeRoute } from '@/src/lib/app-routing';
 
 export default function WelcomeScreen() {
+  const { user, profile, roles, loading } = useAuth();
+
+  if (loading) {
+    return <FullScreenLoader />;
+  }
+
+  if (user) {
+    return <Redirect href={getHomeRoute(profile, roles)} />;
+  }
+
   return (
     <Screen>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <AppText style={styles.badge}>Nigeria Property Super App</AppText>
-          <AppText style={styles.title}>Find, manage, and close property deals smarter.</AppText>
+          <AppText style={styles.badge}>Smart Property • Buyer & Seller Modes</AppText>
+          <AppText style={styles.title}>
+            Discover, manage, and close property deals like a premium platform.
+          </AppText>
           <AppText style={styles.subtitle}>
-            Premium real-estate discovery, landlord tools, smart messaging, and verified listings.
+            Built for modern real-estate discovery, landlord operations, verified listings, and
+            better conversations.
           </AppText>
         </View>
 
         <View style={styles.actions}>
-          <AppButton title="Get Started" onPress={() => router.push('/(auth)/login')} />
+          <AppButton title="Get Started" onPress={() => router.push('/login')} />
           <AppButton
-            title="Browse Properties"
+            title="Preview Buyer Experience"
             variant="secondary"
-            onPress={() => router.push('/(tabs)')}
-            style={styles.secondaryButton}
+            onPress={() => router.push('/buyer')}
           />
         </View>
-      </View>
+
+        <View style={styles.grid}>
+          <AppCard>
+            <View style={styles.cardContent}>
+              <AppText style={styles.cardTitle}>Buyer Mode</AppText>
+              <AppText style={styles.cardText}>
+                Browse premium listings, save favorites, and contact owners with clean workflows.
+              </AppText>
+            </View>
+          </AppCard>
+
+          <AppCard>
+            <View style={styles.cardContent}>
+              <AppText style={styles.cardTitle}>Seller Mode</AppText>
+              <AppText style={styles.cardText}>
+                Manage leads, listings, and landlord workflows from a dedicated dashboard.
+              </AppText>
+            </View>
+          </AppCard>
+
+          <AppCard>
+            <View style={styles.cardContent}>
+              <AppText style={styles.cardTitle}>Smart Messaging</AppText>
+              <AppText style={styles.cardText}>
+                Inquiry composer now, AI + human handoff next, and WhatsApp alerts behind the scenes.
+              </AppText>
+            </View>
+          </AppCard>
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: 'space-between',
     padding: 24,
-    backgroundColor: colors.background,
+    gap: 24,
   },
   hero: {
-    marginTop: 80,
-    gap: 16,
+    marginTop: 24,
+    gap: 14,
   },
   badge: {
     color: colors.primary,
-    fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   title: {
     fontSize: 34,
     lineHeight: 42,
-    fontWeight: '800',
+    fontWeight: '900',
     color: colors.text,
   },
   subtitle: {
@@ -60,9 +104,22 @@ const styles = StyleSheet.create({
   },
   actions: {
     gap: 12,
-    marginBottom: 24,
   },
-  secondaryButton: {
-    marginTop: 0,
+  grid: {
+    gap: 16,
+    paddingBottom: 16,
+  },
+  cardContent: {
+    gap: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  cardText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.textMuted,
   },
 });

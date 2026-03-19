@@ -16,8 +16,25 @@ export type DatabaseProperty = {
   bathrooms: number;
   is_published: boolean;
   verification_status: 'pending' | 'approved' | 'rejected';
+  latitude: number | null;
+  longitude: number | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PropertyImageRecord = {
+  id: string;
+  property_id: string;
+  image_url: string;
+  storage_path: string | null;
+  is_cover: boolean;
+  sort_order: number;
+  created_at: string;
+};
+
+export type PropertyWithMedia = DatabaseProperty & {
+  images: PropertyImageRecord[];
+  cover_image_url: string | null;
 };
 
 export type PropertyFormValues = {
@@ -31,7 +48,19 @@ export type PropertyFormValues = {
   description: string;
   bedrooms: string;
   bathrooms: string;
+  latitude: string;
+  longitude: string;
   isPublished: boolean;
+};
+
+export type SelectedListingImage = {
+  id?: string;
+  uri: string;
+  mimeType?: string | null;
+  fileName?: string | null;
+  existing?: boolean;
+  image_url?: string | null;
+  storage_path?: string | null;
 };
 
 export type SellerInquiryItem = {
@@ -64,6 +93,197 @@ function toNumber(value: string, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function toNullableNumber(value: string) {
+  if (!value || !value.trim()) return null;
+  const parsed = Number(String(value).replace(/,/g, '').trim());
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getFileExtension(image: SelectedListingImage) {
+  if (image.fileName && image.fileName.includes('.')) {
+    return image.fileName.split('.').pop()?.toLowerCase() || 'jpg';
+  }
+
+  if (image.mimeType) {
+    if (image.mimeType.includes('png')) return 'png';
+    if (image.mimeType.includes('webp')) return 'webp';
+  }
+
+  return 'jpg';
+}
+
+async function fetchPropertyImagesByIds(propertyIds: string[]) {
+  if (!propertyIds.length) {
+    return [] as PropertyImageRecord[];
+  }
+
+  const { data, error } = await supabase
+    .from('property_images')
+    .select('*')
+    .in('property_id', propertyIds)
+    .order('is_cover', { ascending: false })
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []) as PropertyImageRecord[];
+}
+
+function attachImages(properties: DatabaseProperty[], images: PropertyImageRecord[]) {
+  const imageMap = new Map<string, PropertyImageRecord[]>();
+
+  for (const image of images) {
+    const current = imageMap.get(image.property_id) ?? [];
+    current.push(image);
+    imageMap.set(image.property_id, current);
+  }
+
+  return properties.map((property) => {
+    const propertyImages = imageMap.get(property.id) ?? [];
+    const cover = propertyImages.find((item) => item.is_cover) ?? propertyImages[0] ?? null;
+
+    return {
+      ...property,
+      images: propertyImages,
+      cover_image_url: cover?.image_url ?? null,
+    };
+  }) as PropertyWithMedia[];
+}
+
+async function uploadPropertyImage(
+  userId: string,
+  propertyId: string,
+  image: SelectedListingImage,
+  isCover: boolean,
+  sortOrder: number
+) {
+  const ext = getFileExtension(image);
+  const filePath = `${userId}/${propertyId}/${isCover ? 'cover' : `gallery-${sortOrder}`}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${ext}`;
+
+  const response = await fetch(image.uri);
+  const blob = await response.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from('property-images')
+    .upload(filePath, blob, {
+      contentType: image.mimeType ?? 'image/jpeg',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+  const { data: publicData } = supabase.storage
+    .from('property-images')
+    .getPublicUrl(filePath);
+
+  const { data, error } = await supabase
+    .from('property_images')
+    .insert({
+      property_id: propertyId,
+      image_url: publicData.publicUrl,
+      storage_path: filePath,
+      is_cover: isCover,
+      sort_order: sortOrder,
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data as PropertyImageRecord;
+}
+
+export async function fetchPropertyImages(propertyId: string) {
+  const { data, error } = await supabase
+    .from('property_images')
+    .select('*')
+    .eq('property_id', propertyId)
+    .order('is_cover', { ascending: false })
+    .order('sort_order', { ascending: true });
+
+  if (error) throw error;
+
+  return (data ?? []) as PropertyImageRecord[];
+}
+
+export function toSelectedListingImage(image: PropertyImageRecord): SelectedListingImage {
+  return {
+    id: image.id,
+    uri: image.image_url,
+    existing: true,
+    image_url: image.image_url,
+    storage_path: image.storage_path,
+  };
+}
+
+async function syncPropertyImages(
+  userId: string,
+  propertyId: string,
+  coverImage: SelectedListingImage | null,
+  galleryImages: SelectedListingImage[]
+) {
+  if (!coverImage) {
+    throw new Error('A cover image is required.');
+  }
+
+  if (galleryImages.length < 1) {
+    throw new Error('Add at least one gallery image to show different angles.');
+  }
+
+  const existingImages = await fetchPropertyImages(propertyId);
+  const desiredExistingIds = new Set(
+    [coverImage, ...galleryImages]
+      .filter((image) => image.existing && image.id)
+      .map((image) => image.id as string)
+  );
+
+  const imagesToDelete = existingImages.filter((image) => !desiredExistingIds.has(image.id));
+
+  if (imagesToDelete.length) {
+    const storagePaths = imagesToDelete
+      .map((image) => image.storage_path)
+      .filter(Boolean) as string[];
+
+    if (storagePaths.length) {
+      await supabase.storage.from('property-images').remove(storagePaths);
+    }
+
+    await supabase.from('property_images').delete().in('id', imagesToDelete.map((image) => image.id));
+  }
+
+  const orderedImages = [
+    { image: coverImage, isCover: true, sortOrder: 0 },
+    ...galleryImages.map((image, index) => ({
+      image,
+      isCover: false,
+      sortOrder: index + 1,
+    })),
+  ];
+
+  for (const item of orderedImages) {
+    if (item.image.existing && item.image.id) {
+      const { error } = await supabase
+        .from('property_images')
+        .update({
+          is_cover: item.isCover,
+          sort_order: item.sortOrder,
+        })
+        .eq('id', item.image.id)
+        .eq('property_id', propertyId);
+
+      if (error) throw error;
+    } else {
+      await uploadPropertyImage(userId, propertyId, item.image, item.isCover, item.sortOrder);
+    }
+  }
+}
+
 export function formatPrice(price: number | null | undefined) {
   if (price == null) return 'Price on request';
 
@@ -74,7 +294,7 @@ export function formatPrice(price: number | null | undefined) {
   }).format(price);
 }
 
-export function propertyToSnapshot(property: DatabaseProperty) {
+export function propertyToSnapshot(property: PropertyWithMedia | DatabaseProperty) {
   return {
     id: property.id,
     title: property.title,
@@ -103,7 +323,10 @@ export async function fetchPublishedProperties() {
 
   if (error) throw error;
 
-  return (data ?? []) as DatabaseProperty[];
+  const properties = (data ?? []) as DatabaseProperty[];
+  const images = await fetchPropertyImagesByIds(properties.map((property) => property.id));
+
+  return attachImages(properties, images);
 }
 
 export async function fetchPropertyById(id: string) {
@@ -114,8 +337,12 @@ export async function fetchPropertyById(id: string) {
     .maybeSingle();
 
   if (error) throw error;
+  if (!data) return null;
 
-  return (data as DatabaseProperty | null) ?? null;
+  const property = data as DatabaseProperty;
+  const images = await fetchPropertyImages(property.id);
+
+  return attachImages([property], images)[0] ?? null;
 }
 
 export async function fetchSellerProperties(userId: string) {
@@ -127,10 +354,22 @@ export async function fetchSellerProperties(userId: string) {
 
   if (error) throw error;
 
-  return (data ?? []) as DatabaseProperty[];
+  const properties = (data ?? []) as DatabaseProperty[];
+  const images = await fetchPropertyImagesByIds(properties.map((property) => property.id));
+
+  return attachImages(properties, images);
 }
 
-export async function createSellerProperty(userId: string, values: PropertyFormValues) {
+export async function createSellerProperty(
+  userId: string,
+  values: PropertyFormValues,
+  coverImage: SelectedListingImage | null,
+  galleryImages: SelectedListingImage[]
+) {
+  if (!coverImage || galleryImages.length < 1) {
+    throw new Error('Add a cover image and at least one gallery image before saving.');
+  }
+
   const payload = {
     owner_id: userId,
     title: values.title.trim(),
@@ -144,6 +383,8 @@ export async function createSellerProperty(userId: string, values: PropertyFormV
     description: values.description.trim() || null,
     bedrooms: toNumber(values.bedrooms),
     bathrooms: toNumber(values.bathrooms),
+    latitude: toNullableNumber(values.latitude),
+    longitude: toNullableNumber(values.longitude),
     is_published: values.isPublished,
     verification_status: 'approved',
   };
@@ -152,14 +393,23 @@ export async function createSellerProperty(userId: string, values: PropertyFormV
 
   if (error) throw error;
 
-  return data as DatabaseProperty;
+  const property = data as DatabaseProperty;
+  await syncPropertyImages(userId, property.id, coverImage, galleryImages);
+
+  return fetchPropertyById(property.id);
 }
 
 export async function updateSellerProperty(
   propertyId: string,
   userId: string,
-  values: PropertyFormValues
+  values: PropertyFormValues,
+  coverImage: SelectedListingImage | null,
+  galleryImages: SelectedListingImage[]
 ) {
+  if (!coverImage || galleryImages.length < 1) {
+    throw new Error('Add a cover image and at least one gallery image before saving.');
+  }
+
   const payload = {
     owner_id: userId,
     title: values.title.trim(),
@@ -173,21 +423,23 @@ export async function updateSellerProperty(
     description: values.description.trim() || null,
     bedrooms: toNumber(values.bedrooms),
     bathrooms: toNumber(values.bathrooms),
+    latitude: toNullableNumber(values.latitude),
+    longitude: toNullableNumber(values.longitude),
     is_published: values.isPublished,
     verification_status: 'approved',
   };
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('properties')
     .update(payload)
     .eq('id', propertyId)
-    .eq('owner_id', userId)
-    .select('*')
-    .single();
+    .eq('owner_id', userId);
 
   if (error) throw error;
 
-  return data as DatabaseProperty;
+  await syncPropertyImages(userId, propertyId, coverImage, galleryImages);
+
+  return fetchPropertyById(propertyId);
 }
 
 export async function fetchSellerStats(userId: string) {

@@ -45,6 +45,7 @@ export default function BuyerProfileScreen() {
         </AppCard>
 
         <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+        <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
 
         {hasSellerAccess ? (
           <AppButton title="Switch to Seller Mode" onPress={switchToSeller} />

@@ -2,6 +2,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ExpoLinking from 'expo-linking';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
@@ -11,7 +13,7 @@ import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
 import {
-  DatabaseProperty,
+  PropertyWithMedia,
   fetchPropertyById,
   formatPrice,
   propertyToSnapshot,
@@ -20,7 +22,7 @@ import {
 export default function PropertyDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
-  const [property, setProperty] = useState<DatabaseProperty | null>(null);
+  const [property, setProperty] = useState<PropertyWithMedia | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
@@ -67,6 +69,16 @@ export default function PropertyDetailsScreen() {
     }
   }
 
+  async function openMap() {
+    if (!property?.latitude || !property?.longitude) {
+      Alert.alert('Map unavailable', 'This listing does not have map coordinates yet.');
+      return;
+    }
+
+    const url = `https://www.google.com/maps/search/?api=1&query=${property.latitude},${property.longitude}`;
+    await ExpoLinking.openURL(url);
+  }
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container}>
@@ -86,6 +98,19 @@ export default function PropertyDetailsScreen() {
 
         <AppText style={styles.propertyTitle}>{property?.title ?? 'Property Details'}</AppText>
 
+        {property?.images?.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {property.images.map((image) => (
+              <Image
+                key={image.id}
+                source={image.image_url}
+                style={styles.galleryImage}
+                contentFit="cover"
+              />
+            ))}
+          </ScrollView>
+        ) : null}
+
         <AppCard>
           <View style={styles.content}>
             <AppText style={styles.price}>
@@ -101,6 +126,16 @@ export default function PropertyDetailsScreen() {
             <AppText style={styles.description}>
               {property?.description ?? 'This listing will display its live property details here.'}
             </AppText>
+          </View>
+        </AppCard>
+
+        <AppCard>
+          <View style={styles.content}>
+            <AppText style={styles.mapTitle}>Location & Map</AppText>
+            <AppText style={styles.mapText}>
+              {property?.address ?? property?.location_text ?? 'Location unavailable'}
+            </AppText>
+            <AppButton title="Open in Maps" variant="secondary" onPress={openMap} />
           </View>
         </AppCard>
 
@@ -137,6 +172,15 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: colors.text,
   },
+  galleryRow: {
+    gap: 12,
+  },
+  galleryImage: {
+    width: 280,
+    height: 220,
+    borderRadius: 18,
+    backgroundColor: '#E2E8F0',
+  },
   content: {
     gap: 10,
   },
@@ -154,6 +198,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     color: colors.text,
+  },
+  mapTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  mapText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: colors.textMuted,
   },
   actions: {
     gap: 12,

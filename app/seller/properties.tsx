@@ -1,20 +1,21 @@
 import { router, useFocusEffect } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
+import { Image } from 'expo-image';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
-  DatabaseProperty,
+  PropertyWithMedia,
   fetchSellerProperties,
   formatPrice,
 } from '@/src/lib/properties/live-properties';
 
 export default function SellerPropertiesScreen() {
   const { user } = useAuth();
-  const [items, setItems] = useState<DatabaseProperty[]>([]);
+  const [items, setItems] = useState<PropertyWithMedia[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -53,7 +54,7 @@ export default function SellerPropertiesScreen() {
             <View style={styles.cardContent}>
               <AppText style={styles.cardTitle}>No listings yet</AppText>
               <AppText>
-                Create your first property listing to activate the live buyer marketplace.
+                Create your first property listing with a cover image and gallery to activate the live buyer marketplace.
               </AppText>
             </View>
           </AppCard>
@@ -61,6 +62,10 @@ export default function SellerPropertiesScreen() {
           items.map((property) => (
             <AppCard key={property.id}>
               <View style={styles.cardContent}>
+                {property.cover_image_url ? (
+                  <Image source={property.cover_image_url} style={styles.coverImage} contentFit="cover" />
+                ) : null}
+
                 <AppText style={styles.cardTitle}>{property.title}</AppText>
                 <AppText>
                   {property.listing_type === 'sale'
@@ -69,18 +74,18 @@ export default function SellerPropertiesScreen() {
                 </AppText>
                 <AppText>{property.location_text}</AppText>
                 <AppText>
-                  {property.is_published ? 'Published' : 'Draft'} • {property.verification_status}
+                  {property.is_published ? 'Published' : 'Draft'} • {property.verification_status} • {property.images.length} images
                 </AppText>
 
                 <View style={styles.actions}>
                   <AppButton
-                    title="Edit"
-                    onPress={() => router.push(`/listing/edit/${property.id}`)}
+                    title="Preview"
+                    onPress={() => router.push(`/property/${property.id}`)}
                   />
                   <AppButton
-                    title="View"
+                    title="Edit"
                     variant="secondary"
-                    onPress={() => router.push(`/property/${property.id}`)}
+                    onPress={() => router.push(`/listing/edit/${property.id}`)}
                   />
                 </View>
               </View>
@@ -103,6 +108,12 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     gap: 8,
+  },
+  coverImage: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
   },
   cardTitle: {
     fontSize: 18,

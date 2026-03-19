@@ -47,6 +47,7 @@ export default function SellerProfileScreen() {
         </AppCard>
 
         <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+        <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
         <AppButton title="Switch to Buyer Mode" onPress={switchToBuyer} />
         <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />
       </View>

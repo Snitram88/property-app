@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
@@ -11,6 +11,7 @@ type PropertyFormProps = {
   initialValues?: Partial<PropertyFormValues>;
   submitLabel: string;
   onSubmit: (values: PropertyFormValues) => Promise<void>;
+  children?: ReactNode;
 };
 
 const defaultValues: PropertyFormValues = {
@@ -24,6 +25,8 @@ const defaultValues: PropertyFormValues = {
   description: '',
   bedrooms: '',
   bathrooms: '',
+  latitude: '',
+  longitude: '',
   isPublished: true,
 };
 
@@ -31,6 +34,7 @@ export function PropertyForm({
   initialValues,
   submitLabel,
   onSubmit,
+  children,
 }: PropertyFormProps) {
   const [values, setValues] = useState<PropertyFormValues>({
     ...defaultValues,
@@ -166,6 +170,35 @@ export function PropertyForm({
           </View>
 
           <View style={styles.group}>
+            <AppText style={styles.groupLabel}>Map coordinates</AppText>
+            <AppText style={styles.helper}>
+              Add latitude and longitude so buyers can open the property in Maps.
+            </AppText>
+
+            <View style={styles.twoCol}>
+              <View style={styles.col}>
+                <AppInput
+                  label="Latitude"
+                  value={values.latitude}
+                  onChangeText={(text) => updateField('latitude', text)}
+                  placeholder="e.g. 6.5244"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.col}>
+                <AppInput
+                  label="Longitude"
+                  value={values.longitude}
+                  onChangeText={(text) => updateField('longitude', text)}
+                  placeholder="e.g. 3.3792"
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.group}>
             <AppText style={styles.groupLabel}>Publishing</AppText>
             <View style={styles.toggleRow}>
               <TouchableOpacity
@@ -190,6 +223,8 @@ export function PropertyForm({
         </View>
       </AppCard>
 
+      {children}
+
       <AppButton
         title={saving ? 'Saving listing...' : submitLabel}
         onPress={handleSubmit}
@@ -212,6 +247,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: colors.text,
+  },
+  helper: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: colors.textMuted,
   },
   toggleRow: {
     flexDirection: 'row',

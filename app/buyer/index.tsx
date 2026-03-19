@@ -2,6 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
@@ -10,7 +11,7 @@ import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
 import {
-  DatabaseProperty,
+  PropertyWithMedia,
   fetchPublishedProperties,
   formatPrice,
   propertyToSnapshot,
@@ -19,7 +20,7 @@ import {
 export default function BuyerHomeScreen() {
   const { profile, user } = useAuth();
   const [savedRefs, setSavedRefs] = useState<Set<string>>(new Set());
-  const [properties, setProperties] = useState<DatabaseProperty[]>([]);
+  const [properties, setProperties] = useState<PropertyWithMedia[]>([]);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,7 +52,7 @@ export default function BuyerHomeScreen() {
     }, [user?.id])
   );
 
-  async function handleToggleSave(property: DatabaseProperty) {
+  async function handleToggleSave(property: PropertyWithMedia) {
     if (!user?.id) {
       Alert.alert('Sign in required', 'Please sign in to save properties.');
       return;
@@ -84,7 +85,7 @@ export default function BuyerHomeScreen() {
             Welcome{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}.
           </AppText>
           <AppText style={styles.subtitle}>
-            Discover live listings, save favorites, contact owners, and schedule viewings.
+            Discover live listings, richer image galleries, and stronger buyer confidence.
           </AppText>
         </View>
 
@@ -106,7 +107,7 @@ export default function BuyerHomeScreen() {
               <View style={styles.banner}>
                 <AppText style={styles.bannerTitle}>No live listings yet</AppText>
                 <AppText style={styles.bannerText}>
-                  Once sellers publish properties, the live marketplace will appear here.
+                  Once sellers publish properties with images, the live marketplace will appear here.
                 </AppText>
               </View>
             </AppCard>
@@ -117,6 +118,10 @@ export default function BuyerHomeScreen() {
               return (
                 <AppCard key={property.id}>
                   <View style={styles.cardContent}>
+                    {property.cover_image_url ? (
+                      <Image source={property.cover_image_url} style={styles.coverImage} contentFit="cover" />
+                    ) : null}
+
                     <View style={styles.badgeRow}>
                       <AppText style={styles.badge}>
                         {property.verification_status === 'approved' ? 'Verified' : 'Live'}
@@ -143,12 +148,10 @@ export default function BuyerHomeScreen() {
                       {property.bedrooms} beds • {property.bathrooms} baths • {property.listing_type}
                     </AppText>
 
-                    <View style={styles.cardActions}>
-                      <AppButton
-                        title="View Property"
-                        onPress={() => router.push(`/property/${property.id}`)}
-                      />
-                    </View>
+                    <AppButton
+                      title="View Property"
+                      onPress={() => router.push(`/property/${property.id}`)}
+                    />
                   </View>
                 </AppCard>
               );
@@ -203,6 +206,12 @@ const styles = StyleSheet.create({
   cardContent: {
     gap: 10,
   },
+  coverImage: {
+    width: '100%',
+    height: 190,
+    borderRadius: 16,
+    backgroundColor: '#E2E8F0',
+  },
   badgeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -241,8 +250,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.textMuted,
     textTransform: 'capitalize',
-  },
-  cardActions: {
-    gap: 10,
   },
 });

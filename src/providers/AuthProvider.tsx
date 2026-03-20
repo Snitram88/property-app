@@ -194,7 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await loadUserData(currentSession.user);
         }
       } catch (error) {
-        console.error('Auth bootstrap error:', error);
+        console.error('Auth bootstrap error:', JSON.stringify(error, null, 2), error);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -217,7 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setRoles([]);
         }
       } catch (error) {
-        console.error('Auth state change error:', error);
+        console.error('Auth state change error:', JSON.stringify(error, null, 2), error);
       } finally {
         setLoading(false);
       }

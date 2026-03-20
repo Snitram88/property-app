@@ -22,6 +22,9 @@ export type DatabaseProperty = {
   longitude: number | null;
   created_at: string;
   updated_at: string;
+  review_notes?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
 };
 
 export type PropertyImageRecord = {
@@ -400,8 +403,11 @@ export async function createSellerProperty(
     bathrooms: toNumber(values.bathrooms),
     latitude: toNullableNumber(values.latitude),
     longitude: toNullableNumber(values.longitude),
-    is_published: values.isPublished,
+    is_published: true,
     verification_status: 'pending',
+    review_notes: null,
+    reviewed_at: null,
+    reviewed_by: null,
   };
 
   const { data, error } = await supabase.from('properties').insert(payload).select('*').single();
@@ -431,6 +437,17 @@ export async function updateSellerProperty(
     throw new Error('Add a cover image and at least one gallery image before saving.');
   }
 
+  const { data: currentProperty, error: currentError } = await supabase
+    .from('properties')
+    .select('verification_status')
+    .eq('id', propertyId)
+    .eq('owner_id', userId)
+    .maybeSingle();
+
+  if (currentError) throw currentError;
+
+  const wasRejected = currentProperty?.verification_status === 'rejected';
+
   const payload = {
     owner_id: userId,
     title: values.title.trim(),
@@ -446,8 +463,11 @@ export async function updateSellerProperty(
     bathrooms: toNumber(values.bathrooms),
     latitude: toNullableNumber(values.latitude),
     longitude: toNullableNumber(values.longitude),
-    is_published: values.isPublished,
-    verification_status: 'pending',
+    is_published: wasRejected ? true : values.isPublished,
+    verification_status: wasRejected ? 'pending' : 'pending',
+    review_notes: null,
+    reviewed_at: null,
+    reviewed_by: null,
   };
 
   const { error } = await supabase

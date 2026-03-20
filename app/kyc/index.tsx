@@ -9,10 +9,50 @@ import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import {
   fetchMyKycSubmission,
-  formatVerificationStatus,
   submitSellerKyc,
 } from '@/src/lib/admin/verification';
 import { colors } from '@/src/theme/colors';
+
+type FriendlyKycState = {
+  title: string;
+  message: string;
+  actionLabel: string;
+};
+
+function getFriendlyKycState(status?: string | null): FriendlyKycState {
+  switch (status) {
+    case 'pending_kyc':
+      return {
+        title: 'Pending Review',
+        message: 'Your KYC has been submitted and is currently awaiting admin review.',
+        actionLabel: 'Edit & Resubmit for Review',
+      };
+    case 'verified':
+      return {
+        title: 'KYC Approved',
+        message: 'Your seller KYC has been approved. You can still edit and resubmit if your information changes.',
+        actionLabel: 'Edit & Resubmit for Review',
+      };
+    case 'rejected':
+      return {
+        title: 'KYC Rejected',
+        message: 'Your KYC was reviewed and rejected. Update the details below and resubmit for another review.',
+        actionLabel: 'Edit & Resubmit for Review',
+      };
+    case 'suspended':
+      return {
+        title: 'KYC Suspended',
+        message: 'Your seller verification is currently suspended. Update the details below and resubmit for review.',
+        actionLabel: 'Edit & Resubmit for Review',
+      };
+    default:
+      return {
+        title: 'KYC Not Submitted',
+        message: 'Submit your seller verification details for admin review.',
+        actionLabel: 'Submit KYC for Review',
+      };
+  }
+}
 
 export default function KycScreen() {
   const { user, profile, refreshProfile } = useAuth();
@@ -26,8 +66,8 @@ export default function KycScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const verificationStatus = useMemo(
-    () => formatVerificationStatus(profile?.seller_verification_status),
+  const friendlyState = useMemo(
+    () => getFriendlyKycState(profile?.seller_verification_status),
     [profile?.seller_verification_status]
   );
 
@@ -86,7 +126,10 @@ export default function KycScreen() {
       });
 
       await refreshProfile();
-      Alert.alert('KYC submitted', 'Your seller KYC has been sent to admin for review.');
+      Alert.alert(
+        'KYC sent for review',
+        'Your KYC has been submitted or resubmitted and is now awaiting admin review.'
+      );
     } catch (error: any) {
       Alert.alert('Submission failed', error?.message ?? 'Please try again.');
     } finally {
@@ -104,8 +147,8 @@ export default function KycScreen() {
 
         <AppCard>
           <View style={styles.section}>
-            <AppText style={styles.sectionTitle}>Verification Status</AppText>
-            <AppText style={styles.status}>{verificationStatus}</AppText>
+            <AppText style={styles.sectionTitle}>{friendlyState.title}</AppText>
+            <AppText style={styles.helperText}>{friendlyState.message}</AppText>
             <AppText style={styles.helperText}>
               Seller type: {profile?.seller_type ?? 'Not set'}.
             </AppText>
@@ -186,7 +229,7 @@ export default function KycScreen() {
         </AppCard>
 
         <AppButton
-          title={submitting ? 'Submitting KYC...' : 'Submit KYC'}
+          title={submitting ? 'Sending...' : friendlyState.actionLabel}
           onPress={handleSubmit}
         />
       </ScrollView>
@@ -209,11 +252,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     color: colors.text,
-  },
-  status: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.primary,
   },
   helperText: {
     fontSize: 14,

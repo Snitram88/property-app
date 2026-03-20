@@ -1,8 +1,9 @@
 import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import ImageViewing from 'react-native-image-viewing';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
@@ -29,9 +30,12 @@ import {
 export default function PropertyDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+
   const [property, setProperty] = useState<PropertyWithMedia | null>(null);
   const [saved, setSaved] = useState(false);
   const [contact, setContact] = useState<PropertyContactDetails | null>(null);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -67,6 +71,11 @@ export default function PropertyDetailsScreen() {
       active = false;
     };
   }, [id, user?.id]);
+
+  const viewerImages = useMemo(
+    () => (property?.images ?? []).map((image) => ({ uri: image.image_url })),
+    [property?.images]
+  );
 
   async function handleSave() {
     if (!user?.id || !property) {
@@ -156,6 +165,11 @@ export default function PropertyDetailsScreen() {
     }
   }
 
+  function openViewer(index: number) {
+    setSelectedImageIndex(index);
+    setViewerVisible(true);
+  }
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container}>
@@ -176,14 +190,19 @@ export default function PropertyDetailsScreen() {
         <AppText style={styles.propertyTitle}>{property?.title ?? 'Property Details'}</AppText>
 
         {property?.images?.length ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
-            {property.images.map((image) => (
-              <Image
-                key={image.id}
-                source={image.image_url}
-                style={styles.galleryImage}
-                contentFit="cover"
-              />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.galleryRow}
+          >
+            {property.images.map((image, index) => (
+              <Pressable key={image.id} onPress={() => openViewer(index)}>
+                <Image
+                  source={image.image_url}
+                  style={styles.galleryImage}
+                  contentFit="cover"
+                />
+              </Pressable>
             ))}
           </ScrollView>
         ) : null}
@@ -198,7 +217,8 @@ export default function PropertyDetailsScreen() {
                 : 'Price on request'}
             </AppText>
             <AppText style={styles.meta}>
-              {property?.bedrooms ?? 0} beds • {property?.bathrooms ?? 0} baths • {property?.listing_type ?? 'listing'}
+              {property?.bedrooms ?? 0} beds • {property?.bathrooms ?? 0} baths •{' '}
+              {property?.listing_type ?? 'listing'}
             </AppText>
             <AppText style={styles.description}>
               {property?.description ?? 'This listing will display its live property details here.'}
@@ -214,7 +234,10 @@ export default function PropertyDetailsScreen() {
                 You are viewing your own listing. Buyer contact actions are hidden here.
               </AppText>
               <View style={styles.actions}>
-                <AppButton title="Edit Listing" onPress={() => router.push(`/listing/edit/${property?.id}`)} />
+                <AppButton
+                  title="Edit Listing"
+                  onPress={() => router.push(`/listing/edit/${property?.id}`)}
+                />
               </View>
             </View>
           </AppCard>
@@ -242,7 +265,8 @@ export default function PropertyDetailsScreen() {
               <View style={styles.content}>
                 <AppText style={styles.contactTitle}>Quick External Contact</AppText>
                 <AppText style={styles.contactText}>
-                  These buttons open your phone, SMS, WhatsApp, or email app directly and do not create an in-app message.
+                  These buttons open your phone, SMS, WhatsApp, or email app directly and do not
+                  create an in-app message.
                 </AppText>
 
                 <View style={styles.actions}>
@@ -255,6 +279,17 @@ export default function PropertyDetailsScreen() {
           </>
         )}
       </ScrollView>
+
+      <ImageViewing
+        images={viewerImages}
+        imageIndex={selectedImageIndex}
+        visible={viewerVisible}
+        onRequestClose={() => setViewerVisible(false)}
+        onImageIndexChange={(index) => setSelectedImageIndex(index ?? 0)}
+        swipeToCloseEnabled
+        presentationStyle="fullScreen"
+        backgroundColor="#000000"
+      />
     </Screen>
   );
 }

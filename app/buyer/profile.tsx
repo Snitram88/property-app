@@ -28,6 +28,8 @@ export default function BuyerProfileScreen() {
     }
   }
 
+  const isAdmin = roles.includes('admin');
+
   return (
     <Screen>
       <View style={styles.container}>
@@ -46,11 +48,12 @@ export default function BuyerProfileScreen() {
 
         <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
         <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
-
+        {isAdmin ? (
+          <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />
+        ) : null}
         {hasSellerAccess ? (
           <AppButton title="Switch to Seller Mode" onPress={switchToSeller} />
         ) : null}
-
         <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />
       </View>
     </Screen>

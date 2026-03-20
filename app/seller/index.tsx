@@ -1,6 +1,6 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
@@ -8,7 +8,7 @@ import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { colors } from '@/src/theme/colors';
 import { fetchSellerStats } from '@/src/lib/properties/live-properties';
-import { router } from 'expo-router';
+import { formatVerificationStatus } from '@/src/lib/admin/verification';
 
 export default function SellerDashboardScreen() {
   const { profile, user } = useAuth();
@@ -53,16 +53,26 @@ export default function SellerDashboardScreen() {
             Dashboard{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}
           </AppText>
           <AppText style={styles.subtitle}>
-            Live inventory, incoming buyer leads, and viewing requests now flow through this dashboard.
+            Live inventory, incoming buyer leads, and admin verification all flow through this dashboard.
           </AppText>
         </View>
+
+        <AppCard>
+          <View style={styles.banner}>
+            <AppText style={styles.bannerTitle}>Seller Verification</AppText>
+            <AppText style={styles.bannerText}>
+              Current status: {formatVerificationStatus(profile?.seller_verification_status)}
+            </AppText>
+            <AppButton title="Open KYC" onPress={() => router.push('/kyc')} />
+          </View>
+        </AppCard>
 
         {incompleteProfile ? (
           <AppCard>
             <View style={styles.banner}>
               <AppText style={styles.bannerTitle}>Complete your seller profile</AppText>
               <AppText style={styles.bannerText}>
-                Add your phone and WhatsApp details so leads, inquiries, and notifications work properly.
+                Add your phone and WhatsApp details so KYC, leads, and notifications work properly.
               </AppText>
               <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
             </View>
@@ -72,14 +82,14 @@ export default function SellerDashboardScreen() {
         <View style={styles.grid}>
           <AppCard>
             <View style={styles.metricCard}>
-              <AppText style={styles.metricLabel}>Active Listings</AppText>
+              <AppText style={styles.metricLabel}>My Listings</AppText>
               <AppText style={styles.metricValue}>{stats.propertyCount}</AppText>
             </View>
           </AppCard>
 
           <AppCard>
             <View style={styles.metricCard}>
-              <AppText style={styles.metricLabel}>New Leads</AppText>
+              <AppText style={styles.metricLabel}>Buyer Leads</AppText>
               <AppText style={styles.metricValue}>{stats.inquiryCount}</AppText>
             </View>
           </AppCard>

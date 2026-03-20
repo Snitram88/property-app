@@ -6,6 +6,7 @@ import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { formatRole } from '@/src/lib/app-routing';
+import { formatVerificationStatus } from '@/src/lib/admin/verification';
 
 export default function SellerProfileScreen() {
   const { user, profile, roles, signOut, setActiveMode } = useAuth();
@@ -28,6 +29,8 @@ export default function SellerProfileScreen() {
     }
   }
 
+  const isAdmin = roles.includes('admin');
+
   return (
     <Screen>
       <View style={styles.container}>
@@ -41,13 +44,20 @@ export default function SellerProfileScreen() {
             <AppText>WhatsApp: {profile?.whatsapp_number ?? 'Not set yet'}</AppText>
             <AppText>Seller type: {profile?.seller_type ?? 'Not set yet'}</AppText>
             <AppText>Company: {profile?.company_name ?? 'Not set yet'}</AppText>
+            <AppText>
+              Seller verification: {formatVerificationStatus(profile?.seller_verification_status)}
+            </AppText>
             <AppText>Roles: {roles.length ? roles.map(formatRole).join(', ') : 'Buyer'}</AppText>
             <AppText>Current mode: Seller</AppText>
           </View>
         </AppCard>
 
+        <AppButton title="Open KYC" onPress={() => router.push('/kyc')} />
         <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
         <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
+        {isAdmin ? (
+          <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />
+        ) : null}
         <AppButton title="Switch to Buyer Mode" onPress={switchToBuyer} />
         <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />
       </View>

@@ -1,6 +1,12 @@
 export type UserRole = 'buyer' | 'landlord' | 'agent' | 'admin';
 export type ActiveMode = 'buyer' | 'seller' | 'admin';
 export type OnboardingStep = 'mode' | 'profile' | 'done';
+export type SellerVerificationStatus =
+  | 'unverified'
+  | 'pending_kyc'
+  | 'verified'
+  | 'rejected'
+  | 'suspended';
 
 export type Profile = {
   id: string;
@@ -19,6 +25,10 @@ export type Profile = {
   property_interest_type: string | null;
   company_name: string | null;
   notification_preferences: Record<string, any> | null;
+  seller_verification_status: SellerVerificationStatus;
+  kyc_submitted_at: string | null;
+  kyc_reviewed_at: string | null;
+  kyc_review_notes: string | null;
   created_at: string;
   updated_at: string;
 };

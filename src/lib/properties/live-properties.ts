@@ -401,7 +401,7 @@ export async function createSellerProperty(
     latitude: toNullableNumber(values.latitude),
     longitude: toNullableNumber(values.longitude),
     is_published: values.isPublished,
-    verification_status: 'approved',
+    verification_status: 'pending',
   };
 
   const { data, error } = await supabase.from('properties').insert(payload).select('*').single();
@@ -447,7 +447,7 @@ export async function updateSellerProperty(
     latitude: toNullableNumber(values.latitude),
     longitude: toNullableNumber(values.longitude),
     is_published: values.isPublished,
-    verification_status: 'approved',
+    verification_status: 'pending',
   };
 
   const { error } = await supabase

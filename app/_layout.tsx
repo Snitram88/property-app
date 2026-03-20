@@ -22,6 +22,8 @@ export default function RootLayout() {
           <Stack.Screen name="profile/edit" />
           <Stack.Screen name="listing/create" />
           <Stack.Screen name="listing/edit/[id]" />
+          <Stack.Screen name="kyc/index" />
+          <Stack.Screen name="admin/index" />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>

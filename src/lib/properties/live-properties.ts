@@ -120,9 +120,7 @@ function getFileExtension(image: SelectedListingImage) {
 }
 
 async function fetchPropertyImagesByIds(propertyIds: string[]) {
-  if (!propertyIds.length) {
-    return [] as PropertyImageRecord[];
-  }
+  if (!propertyIds.length) return [] as PropertyImageRecord[];
 
   const { data, error } = await supabase
     .from('property_images')
@@ -132,7 +130,6 @@ async function fetchPropertyImagesByIds(propertyIds: string[]) {
     .order('sort_order', { ascending: true });
 
   if (error) throw error;
-
   return (data ?? []) as PropertyImageRecord[];
 }
 
@@ -190,9 +187,7 @@ async function uploadPropertyImage(
       upsert: false,
     });
 
-  if (uploadError) {
-    throw uploadError;
-  }
+  if (uploadError) throw uploadError;
 
   const { data: publicData } = supabase.storage
     .from('property-images')
@@ -210,10 +205,7 @@ async function uploadPropertyImage(
     .select('*')
     .single();
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data as PropertyImageRecord;
 }
 
@@ -226,7 +218,6 @@ export async function fetchPropertyImages(propertyId: string) {
     .order('sort_order', { ascending: true });
 
   if (error) throw error;
-
   return (data ?? []) as PropertyImageRecord[];
 }
 
@@ -246,13 +237,8 @@ async function syncPropertyImages(
   coverImage: SelectedListingImage | null,
   galleryImages: SelectedListingImage[]
 ) {
-  if (!coverImage) {
-    throw new Error('A cover image is required.');
-  }
-
-  if (galleryImages.length < 1) {
-    throw new Error('Add at least one gallery image to show different angles.');
-  }
+  if (!coverImage) throw new Error('A cover image is required.');
+  if (galleryImages.length < 1) throw new Error('Add at least one gallery image to show different angles.');
 
   const existingImages = await fetchPropertyImages(propertyId);
   const desiredExistingIds = new Set(
@@ -264,9 +250,7 @@ async function syncPropertyImages(
   const imagesToDelete = existingImages.filter((image) => !desiredExistingIds.has(image.id));
 
   if (imagesToDelete.length) {
-    const storagePaths = imagesToDelete
-      .map((image) => image.storage_path)
-      .filter(Boolean) as string[];
+    const storagePaths = imagesToDelete.map((image) => image.storage_path).filter(Boolean) as string[];
 
     if (storagePaths.length) {
       await supabase.storage.from('property-images').remove(storagePaths);
@@ -324,8 +308,8 @@ export function propertyToSnapshot(property: PropertyWithMedia | DatabasePropert
     badge:
       property.verification_status === 'approved'
         ? 'Verified'
-        : property.is_published
-          ? 'Live'
+        : property.verification_status === 'pending'
+          ? 'Awaiting review'
           : 'Draft',
     listingType: property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1),
   };
@@ -411,7 +395,6 @@ export async function createSellerProperty(
   };
 
   const { data, error } = await supabase.from('properties').insert(payload).select('*').single();
-
   if (error) throw error;
 
   const property = data as DatabaseProperty;
@@ -439,14 +422,14 @@ export async function updateSellerProperty(
 
   const { data: currentProperty, error: currentError } = await supabase
     .from('properties')
-    .select('verification_status')
+    .select('verification_status, is_published')
     .eq('id', propertyId)
     .eq('owner_id', userId)
-    .maybeSingle();
+    .single();
 
   if (currentError) throw currentError;
 
-  const wasRejected = currentProperty?.verification_status === 'rejected';
+  const wasRejected = currentProperty.verification_status === 'rejected';
 
   const payload = {
     owner_id: userId,
@@ -464,19 +447,25 @@ export async function updateSellerProperty(
     latitude: toNullableNumber(values.latitude),
     longitude: toNullableNumber(values.longitude),
     is_published: wasRejected ? true : values.isPublished,
-    verification_status: wasRejected ? 'pending' : 'pending',
+    verification_status: 'pending',
     review_notes: null,
     reviewed_at: null,
     reviewed_by: null,
   };
 
-  const { error } = await supabase
+  const { data: updatedRow, error } = await supabase
     .from('properties')
     .update(payload)
     .eq('id', propertyId)
-    .eq('owner_id', userId);
+    .eq('owner_id', userId)
+    .select('id, verification_status, is_published')
+    .single();
 
   if (error) throw error;
+
+  if (!updatedRow.is_published) {
+    throw new Error('Listing was updated but not marked published for admin review.');
+  }
 
   await syncPropertyImages(userId, propertyId, coverImage, galleryImages);
 
@@ -552,6 +541,5 @@ export async function fetchSellerViewingRequests(userId: string) {
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-
   return (data ?? []) as SellerViewingItem[];
 }

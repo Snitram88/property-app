@@ -1,8 +1,11 @@
-import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { AppText } from '@/src/components/ui/AppText';
 import { colors } from '@/src/theme/colors';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 type ZoomViewerProps = {
   visible: boolean;
@@ -35,11 +38,21 @@ export function ZoomViewer({
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+          contentOffset={{ x: SCREEN_WIDTH * imageIndex, y: 0 }}
         >
           {images.map((image, index) => (
             <View key={`${image.uri}-${index}`} style={styles.slide}>
-              <Image source={image.uri} style={styles.image} contentFit="contain" />
+              <ScrollView
+                style={styles.zoomWrap}
+                contentContainerStyle={styles.zoomContent}
+                maximumZoomScale={3}
+                minimumZoomScale={1}
+                centerContent
+                showsVerticalScrollIndicator={false}
+                showsHorizontalScrollIndicator={false}
+              >
+                <Image source={image.uri} style={styles.image} contentFit="contain" />
+              </ScrollView>
             </View>
           ))}
         </ScrollView>
@@ -56,7 +69,7 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: 56,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -74,18 +87,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrollContent: {
-    alignItems: 'center',
-  },
   slide: {
-    width: 390,
-    height: '100%',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT - 110,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 12,
+  },
+  zoomWrap: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT - 110,
+  },
+  zoomContent: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT - 110,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   image: {
-    width: '100%',
-    height: '78%',
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT - 160,
   },
 });

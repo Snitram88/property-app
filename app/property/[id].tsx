@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, StyleSheet, View, Linking, Platform } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,12 +17,21 @@ import {
   formatPrice,
   propertyToSnapshot,
 } from '@/src/lib/properties/live-properties';
+import {
+  PropertyContactDetails,
+  fetchPropertyContactDetails,
+  openEmail,
+  openPhoneDialer,
+  openSms,
+  openWhatsApp,
+} from '@/src/lib/contact/property-contact';
 
 export default function PropertyDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const [property, setProperty] = useState<PropertyWithMedia | null>(null);
   const [saved, setSaved] = useState(false);
+  const [contact, setContact] = useState<PropertyContactDetails | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -34,6 +43,11 @@ export default function PropertyDetailsScreen() {
         const item = await fetchPropertyById(id);
         if (active) {
           setProperty(item);
+        }
+
+        const details = await fetchPropertyContactDetails(id);
+        if (active) {
+          setContact(details);
         }
 
         if (user?.id && item?.id) {
@@ -68,28 +82,78 @@ export default function PropertyDetailsScreen() {
     }
   }
 
-  async function openMap() {
-    if (!property?.latitude || !property?.longitude) {
-      Alert.alert('Map unavailable', 'This listing does not have map coordinates yet.');
+  async function handlePhoneAction() {
+    if (!contact?.seller_phone) {
+      Alert.alert('Unavailable', 'Seller phone number is not available.');
       return;
     }
 
-    const lat = property.latitude;
-    const lng = property.longitude;
+    const phone = contact.seller_phone;
+    const message = property?.title
+      ? `Hello, I’m interested in ${property.title}.`
+      : 'Hello, I’m interested in your property.';
 
-    const url =
-      Platform.OS === 'ios'
-        ? `http://maps.apple.com/?ll=${lat},${lng}`
-        : `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    Alert.alert('Phone Contact', 'Choose how you want to reach the seller.', [
+      {
+        text: 'Call',
+        onPress: async () => {
+          try {
+            await openPhoneDialer(phone);
+          } catch (error: any) {
+            Alert.alert('Call failed', error?.message ?? 'Unable to open dialer.');
+          }
+        },
+      },
+      {
+        text: 'Send SMS',
+        onPress: async () => {
+          try {
+            await openSms(phone, message);
+          } catch (error: any) {
+            Alert.alert('SMS failed', error?.message ?? 'Unable to open messaging app.');
+          }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
 
-    const supported = await Linking.canOpenURL(url);
-
-    if (!supported) {
-      Alert.alert('Map unavailable', 'Unable to open map on this device.');
+  async function handleWhatsApp() {
+    if (!contact?.seller_whatsapp) {
+      Alert.alert('Unavailable', 'Seller WhatsApp number is not available.');
       return;
     }
 
-    await Linking.openURL(url);
+    const message = property?.title
+      ? `Hello, I’m interested in ${property.title}.`
+      : 'Hello, I’m interested in your property.';
+
+    try {
+      await openWhatsApp(contact.seller_whatsapp, message);
+    } catch (error: any) {
+      Alert.alert('WhatsApp failed', error?.message ?? 'Unable to open WhatsApp.');
+    }
+  }
+
+  async function handleEmail() {
+    if (!contact?.seller_email) {
+      Alert.alert('Unavailable', 'Seller email is not available.');
+      return;
+    }
+
+    const subject = property?.title
+      ? `Inquiry about ${property.title}`
+      : 'Property inquiry';
+
+    const body = property?.title
+      ? `Hello,\n\nI’m interested in ${property.title}. Please share more details.\n`
+      : 'Hello,\n\nI’m interested in your property. Please share more details.\n';
+
+    try {
+      await openEmail(contact.seller_email, subject, body);
+    } catch (error: any) {
+      Alert.alert('Email failed', error?.message ?? 'Unable to open email app.');
+    }
   }
 
   return (
@@ -142,24 +206,54 @@ export default function PropertyDetailsScreen() {
           </View>
         </AppCard>
 
-        <AppCard>
-          <View style={styles.content}>
-            <AppText style={styles.mapTitle}>Location & Map</AppText>
-            <AppText style={styles.mapText}>
-              {property?.address ?? property?.location_text ?? 'Location unavailable'}
-            </AppText>
-            <AppButton title="Open in Maps" variant="secondary" onPress={openMap} />
-          </View>
-        </AppCard>
+        {contact?.is_owner ? (
+          <AppCard>
+            <View style={styles.content}>
+              <AppText style={styles.contactTitle}>Seller Preview Mode</AppText>
+              <AppText style={styles.contactText}>
+                You are viewing your own listing. Buyer contact actions are hidden here.
+              </AppText>
+              <View style={styles.actions}>
+                <AppButton title="Edit Listing" onPress={() => router.push(`/listing/edit/${property?.id}`)} />
+              </View>
+            </View>
+          </AppCard>
+        ) : (
+          <>
+            <AppCard>
+              <View style={styles.content}>
+                <AppText style={styles.contactTitle}>In-App Contact</AppText>
+                <AppText style={styles.contactText}>
+                  Use this to start or continue a tracked conversation inside the app.
+                </AppText>
 
-        <View style={styles.actions}>
-          <AppButton title="Contact Owner" onPress={() => router.push(`/inquiry/${id}`)} />
-          <AppButton
-            title="Schedule Viewing"
-            variant="secondary"
-            onPress={() => router.push(`/viewing/${id}`)}
-          />
-        </View>
+                <View style={styles.actions}>
+                  <AppButton title="Message Owner" onPress={() => router.push(`/inquiry/${id}`)} />
+                  <AppButton
+                    title="Schedule Viewing"
+                    variant="secondary"
+                    onPress={() => router.push(`/viewing/${id}`)}
+                  />
+                </View>
+              </View>
+            </AppCard>
+
+            <AppCard>
+              <View style={styles.content}>
+                <AppText style={styles.contactTitle}>Quick External Contact</AppText>
+                <AppText style={styles.contactText}>
+                  These buttons open your phone, SMS, WhatsApp, or email app directly and do not create an in-app message.
+                </AppText>
+
+                <View style={styles.actions}>
+                  <AppButton title="Phone / SMS" variant="secondary" onPress={handlePhoneAction} />
+                  <AppButton title="WhatsApp" variant="secondary" onPress={handleWhatsApp} />
+                  <AppButton title="Email" variant="secondary" onPress={handleEmail} />
+                </View>
+              </View>
+            </AppCard>
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -212,12 +306,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: colors.text,
   },
-  mapTitle: {
+  contactTitle: {
     fontSize: 18,
     fontWeight: '900',
     color: colors.text,
   },
-  mapText: {
+  contactText: {
     fontSize: 14,
     lineHeight: 22,
     color: colors.textMuted,

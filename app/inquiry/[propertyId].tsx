@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
@@ -19,7 +19,6 @@ export default function InquiryComposerScreen() {
 
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
-  const [preferredContact, setPreferredContact] = useState<'phone' | 'whatsapp' | 'email'>('phone');
   const [message, setMessage] = useState('Hello, I’m interested in this property. Please share more details.');
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,11 +35,21 @@ export default function InquiryComposerScreen() {
 
       try {
         const data = await fetchPropertyById(propertyId);
-        if (active) {
-          setProperty(data);
-          if (data?.title) {
-            setMessage(`Hello, I’m interested in ${data.title}. Please share more details.`);
-          }
+
+        if (!active) return;
+
+        setProperty(data);
+
+        if (data?.title) {
+          setMessage(`Hello, I’m interested in ${data.title}. Please share more details.`);
+        }
+
+        if (data?.owner_id && user?.id && data.owner_id === user.id) {
+          Alert.alert(
+            'Seller Preview Mode',
+            'You cannot message your own listing.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
         }
       } catch (error) {
         console.error('Failed to load inquiry property:', error);
@@ -52,7 +61,7 @@ export default function InquiryComposerScreen() {
     return () => {
       active = false;
     };
-  }, [propertyId]);
+  }, [propertyId, user?.id]);
 
   async function submitInquiry() {
     if (!fullName.trim() || !phone.trim() || !message.trim()) {
@@ -62,6 +71,11 @@ export default function InquiryComposerScreen() {
 
     if (!property?.id || !property.owner_id || !user?.id) {
       Alert.alert('Unavailable', 'This property is not ready for conversations yet.');
+      return;
+    }
+
+    if (property.owner_id === user.id) {
+      Alert.alert('Seller Preview Mode', 'You cannot message your own listing.');
       return;
     }
 
@@ -75,81 +89,81 @@ export default function InquiryComposerScreen() {
         senderEmail: user.email ?? null,
         senderPhone: phone.trim(),
         message: message.trim(),
-        preferredContact,
+        preferredContact: 'in_app',
       });
 
-      Alert.alert('Conversation started', 'Your message has been sent to the seller.');
+      Alert.alert('Conversation started', 'Your in-app message has been sent to the seller.');
       router.replace(`/messages/${conversationId}`);
     } catch (error: any) {
-      Alert.alert('Inquiry failed', error?.message ?? 'Please try again.');
+      Alert.alert('Message failed', error?.message ?? 'Please try again.');
     } finally {
       setSubmitting(false);
     }
   }
 
+  const isOwner = property?.owner_id && user?.id ? property.owner_id === user.id : false;
+
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <AppHeader
-          title="Contact Owner"
-          subtitle={property?.title ?? 'Property inquiry'}
+          title="Message Owner"
+          subtitle={property?.title ?? 'In-app conversation'}
         />
 
-        <AppCard>
-          <View style={styles.form}>
-            <AppInput
-              label="Full name"
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Enter full name"
-              autoCapitalize="words"
-            />
-
-            <AppInput
-              label="Phone number"
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Enter phone number"
-              keyboardType="phone-pad"
-            />
-
-            <View style={styles.contactGroup}>
-              <AppText style={styles.groupLabel}>Preferred contact method</AppText>
-
-              <View style={styles.options}>
-                {(['phone', 'whatsapp', 'email'] as const).map((option) => (
-                  <TouchableOpacity
-                    key={option}
-                    style={[styles.option, preferredContact === option && styles.optionActive]}
-                    onPress={() => setPreferredContact(option)}
-                  >
-                    <AppText
-                      style={[styles.optionText, preferredContact === option && styles.optionTextActive]}
-                    >
-                      {option.charAt(0).toUpperCase() + option.slice(1)}
-                    </AppText>
-                  </TouchableOpacity>
-                ))}
-              </View>
+        {isOwner ? (
+          <AppCard>
+            <View style={styles.notice}>
+              <AppText style={styles.noticeTitle}>Seller Preview Mode</AppText>
+              <AppText style={styles.noticeText}>
+                This is your own listing, so in-app messaging is disabled here.
+              </AppText>
+              <AppButton title="Back" onPress={() => router.back()} />
             </View>
+          </AppCard>
+        ) : (
+          <>
+            <AppCard>
+              <View style={styles.form}>
+                <AppText style={styles.helperText}>
+                  This sends an in-app message and creates or continues a conversation thread inside the app.
+                </AppText>
 
-            <AppInput
-              label="Message"
-              value={message}
-              onChangeText={setMessage}
-              placeholder="Write your message"
-              multiline
-            />
-          </View>
-        </AppCard>
+                <AppInput
+                  label="Full name"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Enter full name"
+                  autoCapitalize="words"
+                />
 
-        <View style={styles.actions}>
-          <AppButton
-            title={submitting ? 'Sending...' : 'Send Message'}
-            onPress={submitInquiry}
-          />
-          <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />
-        </View>
+                <AppInput
+                  label="Phone number"
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Enter phone number"
+                  keyboardType="phone-pad"
+                />
+
+                <AppInput
+                  label="Message"
+                  value={message}
+                  onChangeText={setMessage}
+                  placeholder="Write your message"
+                  multiline
+                />
+              </View>
+            </AppCard>
+
+            <View style={styles.actions}>
+              <AppButton
+                title={submitting ? 'Sending...' : 'Send In-App Message'}
+                onPress={submitInquiry}
+              />
+              <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />
+            </View>
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -163,38 +177,23 @@ const styles = StyleSheet.create({
   form: {
     gap: 16,
   },
-  contactGroup: {
-    gap: 10,
-  },
-  groupLabel: {
+  helperText: {
     fontSize: 14,
-    fontWeight: '700',
+    lineHeight: 22,
+    color: colors.textMuted,
+  },
+  notice: {
+    gap: 12,
+  },
+  noticeTitle: {
+    fontSize: 18,
+    fontWeight: '900',
     color: colors.text,
   },
-  options: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  option: {
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.surface,
-  },
-  optionActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  optionText: {
+  noticeText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  optionTextActive: {
-    color: colors.white,
+    lineHeight: 22,
+    color: colors.textMuted,
   },
   actions: {
     gap: 12,

@@ -9,12 +9,12 @@ import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { supabase } from '@/src/lib/supabase/client';
-import { DatabaseProperty, fetchPropertyById } from '@/src/lib/properties/live-properties';
+import { PropertyWithMedia, fetchPropertyById } from '@/src/lib/properties/live-properties';
 
 export default function ScheduleViewingScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { user, profile } = useAuth();
-  const [property, setProperty] = useState<DatabaseProperty | null>(null);
+  const [property, setProperty] = useState<PropertyWithMedia | null>(null);
 
   const [preferredDate, setPreferredDate] = useState('');
   const [preferredTime, setPreferredTime] = useState('');
@@ -30,8 +30,17 @@ export default function ScheduleViewingScreen() {
 
       try {
         const data = await fetchPropertyById(propertyId);
-        if (active) {
-          setProperty(data);
+
+        if (!active) return;
+
+        setProperty(data);
+
+        if (data?.owner_id && user?.id && data.owner_id === user.id) {
+          Alert.alert(
+            'Seller Preview Mode',
+            'You cannot schedule a viewing for your own listing.',
+            [{ text: 'OK', onPress: () => router.back() }]
+          );
         }
       } catch (error) {
         console.error('Failed to load viewing property:', error);
@@ -43,7 +52,7 @@ export default function ScheduleViewingScreen() {
     return () => {
       active = false;
     };
-  }, [propertyId]);
+  }, [propertyId, user?.id]);
 
   async function handleSubmit() {
     if (!preferredDate.trim() || !preferredTime.trim() || !phone.trim()) {
@@ -51,24 +60,25 @@ export default function ScheduleViewingScreen() {
       return;
     }
 
-    if (!user?.id || !property?.id || !property.owner_id) {
-      Alert.alert('Unavailable', 'This property is not ready for viewings yet.');
+    if (!user?.id || !property?.id) {
+      Alert.alert('Unavailable', 'This property is not ready for viewing requests yet.');
+      return;
+    }
+
+    if (property.owner_id === user.id) {
+      Alert.alert('Seller Preview Mode', 'You cannot schedule a viewing for your own listing.');
       return;
     }
 
     try {
       setSubmitting(true);
 
-      const { error } = await supabase.from('viewing_requests').insert({
-        user_id: user.id,
-        seller_id: property.owner_id,
-        property_id: property.id,
-        property_ref: property.id,
-        property_title: property.title,
-        preferred_date: preferredDate.trim(),
-        preferred_time: preferredTime.trim(),
-        phone: phone.trim(),
-        notes: notes.trim() || null,
+      const { error } = await supabase.rpc('start_viewing_request', {
+        p_property_id: property.id,
+        p_phone: phone.trim(),
+        p_preferred_date: preferredDate.trim(),
+        p_preferred_time: preferredTime.trim(),
+        p_notes: notes.trim(),
       });
 
       if (error) {
@@ -76,12 +86,14 @@ export default function ScheduleViewingScreen() {
         return;
       }
 
-      Alert.alert('Viewing scheduled', 'Your viewing request has been recorded.');
+      Alert.alert('Viewing scheduled', 'Your viewing request has been sent to the seller.');
       router.replace('/buyer/messages');
     } finally {
       setSubmitting(false);
     }
   }
+
+  const isOwner = property?.owner_id && user?.id ? property.owner_id === user.id : false;
 
   return (
     <Screen>
@@ -91,51 +103,65 @@ export default function ScheduleViewingScreen() {
           subtitle={property?.title ?? 'Book a property inspection'}
         />
 
-        <AppCard>
-          <View style={styles.form}>
-            <AppText style={styles.helper}>
-              Ask for a date and time that works for you. This now feeds directly into seller leads.
-            </AppText>
+        {isOwner ? (
+          <AppCard>
+            <View style={styles.notice}>
+              <AppText style={styles.noticeTitle}>Seller Preview Mode</AppText>
+              <AppText style={styles.noticeText}>
+                You cannot schedule a viewing for your own listing.
+              </AppText>
+              <AppButton title="Back" onPress={() => router.back()} />
+            </View>
+          </AppCard>
+        ) : (
+          <>
+            <AppCard>
+              <View style={styles.form}>
+                <AppText style={styles.helper}>
+                  Request a date and time that works for you. This will be sent to the seller as a viewing request.
+                </AppText>
 
-            <AppInput
-              label="Preferred date"
-              value={preferredDate}
-              onChangeText={setPreferredDate}
-              placeholder="YYYY-MM-DD"
-            />
+                <AppInput
+                  label="Preferred date"
+                  value={preferredDate}
+                  onChangeText={setPreferredDate}
+                  placeholder="YYYY-MM-DD"
+                />
 
-            <AppInput
-              label="Preferred time"
-              value={preferredTime}
-              onChangeText={setPreferredTime}
-              placeholder="e.g. 2:00 PM"
-            />
+                <AppInput
+                  label="Preferred time"
+                  value={preferredTime}
+                  onChangeText={setPreferredTime}
+                  placeholder="e.g. 2:00 PM"
+                />
 
-            <AppInput
-              label="Phone number"
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Enter phone number"
-              keyboardType="phone-pad"
-            />
+                <AppInput
+                  label="Phone number"
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Enter phone number"
+                  keyboardType="phone-pad"
+                />
 
-            <AppInput
-              label="Notes"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Anything the seller should know?"
-              multiline
-            />
-          </View>
-        </AppCard>
+                <AppInput
+                  label="Notes"
+                  value={notes}
+                  onChangeText={setNotes}
+                  placeholder="Anything the seller should know?"
+                  multiline
+                />
+              </View>
+            </AppCard>
 
-        <View style={styles.actions}>
-          <AppButton
-            title={submitting ? 'Scheduling...' : 'Schedule Viewing'}
-            onPress={handleSubmit}
-          />
-          <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />
-        </View>
+            <View style={styles.actions}>
+              <AppButton
+                title={submitting ? 'Scheduling...' : 'Schedule Viewing'}
+                onPress={handleSubmit}
+              />
+              <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />
+            </View>
+          </>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -150,6 +176,17 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   helper: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+  notice: {
+    gap: 12,
+  },
+  noticeTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  noticeText: {
     fontSize: 14,
     lineHeight: 22,
   },

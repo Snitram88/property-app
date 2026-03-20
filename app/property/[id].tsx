@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import ImageViewing from 'react-native-image-viewing';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
+import { ZoomViewer } from '@/src/components/media/ZoomViewer';
 import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
@@ -280,15 +280,12 @@ export default function PropertyDetailsScreen() {
         )}
       </ScrollView>
 
-      <ImageViewing
+      <ZoomViewer
         images={viewerImages}
         imageIndex={selectedImageIndex}
         visible={viewerVisible}
         onRequestClose={() => setViewerVisible(false)}
-        onImageIndexChange={(index) => setSelectedImageIndex(index ?? 0)}
-        swipeToCloseEnabled
-        presentationStyle="fullScreen"
-        backgroundColor="#000000"
+        onImageIndexChange={setSelectedImageIndex}
       />
     </Screen>
   );

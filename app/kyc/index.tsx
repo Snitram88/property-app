@@ -1,22 +1,24 @@
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
-import { AppCard } from '@/src/components/ui/AppCard';
+import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppButton } from '@/src/components/ui/AppButton';
+import { AppCard } from '@/src/components/ui/AppCard';
 import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
-import {
-  fetchMyKycSubmission,
-  submitSellerKyc,
-} from '@/src/lib/admin/verification';
+import { fetchMyKycSubmission, submitSellerKyc } from '@/src/lib/admin/verification';
 import { colors } from '@/src/theme/colors';
+import { radius } from '@/src/theme/radius';
+import { spacing } from '@/src/theme/spacing';
 
 type FriendlyKycState = {
   title: string;
   message: string;
   actionLabel: string;
+  badgeVariant: 'neutral' | 'warning' | 'verified' | 'danger';
 };
 
 function getFriendlyKycState(status?: string | null): FriendlyKycState {
@@ -26,32 +28,59 @@ function getFriendlyKycState(status?: string | null): FriendlyKycState {
         title: 'Pending Review',
         message: 'Your KYC has been submitted and is currently awaiting admin review.',
         actionLabel: 'Edit & Resubmit for Review',
+        badgeVariant: 'warning',
       };
     case 'verified':
       return {
         title: 'KYC Approved',
         message: 'Your seller KYC has been approved. You can still edit and resubmit if your information changes.',
         actionLabel: 'Edit & Resubmit for Review',
+        badgeVariant: 'verified',
       };
     case 'rejected':
       return {
         title: 'KYC Rejected',
         message: 'Your KYC was reviewed and rejected. Update the details below and resubmit for another review.',
         actionLabel: 'Edit & Resubmit for Review',
+        badgeVariant: 'danger',
       };
     case 'suspended':
       return {
         title: 'KYC Suspended',
         message: 'Your seller verification is currently suspended. Update the details below and resubmit for review.',
         actionLabel: 'Edit & Resubmit for Review',
+        badgeVariant: 'danger',
       };
     default:
       return {
         title: 'KYC Not Submitted',
         message: 'Submit your seller verification details for admin review.',
         actionLabel: 'Submit KYC for Review',
+        badgeVariant: 'neutral',
       };
   }
+}
+
+function InfoPoint({
+  icon,
+  title,
+  subtitle,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <View style={styles.infoPoint}>
+      <View style={styles.infoIcon}>
+        <Ionicons name={icon} size={18} color={colors.primary} />
+      </View>
+      <View style={styles.infoText}>
+        <AppText variant="title">{title}</AppText>
+        <AppText color={colors.textMuted}>{subtitle}</AppText>
+      </View>
+    </View>
+  );
 }
 
 export default function KycScreen() {
@@ -139,30 +168,72 @@ export default function KycScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <AppHeader
           title="Seller KYC"
-          subtitle="Submit your seller verification details for admin review"
+          subtitle="Submit your verification details with a premium trust-first flow"
         />
 
+        <View style={styles.hero}>
+          <AppBadge label={friendlyState.title} variant={friendlyState.badgeVariant as any} />
+          <AppText variant="display">Trust is part of the product.</AppText>
+          <AppText color={colors.textMuted}>
+            Verified sellers build stronger buyer confidence and unlock a more credible marketplace.
+          </AppText>
+        </View>
+
         <AppCard>
-          <View style={styles.section}>
-            <AppText style={styles.sectionTitle}>{friendlyState.title}</AppText>
-            <AppText style={styles.helperText}>{friendlyState.message}</AppText>
-            <AppText style={styles.helperText}>
-              Seller type: {profile?.seller_type ?? 'Not set'}.
-            </AppText>
+          <View style={styles.statusBlock}>
+            <View style={styles.statusHeader}>
+              <View style={styles.statusIconWrap}>
+                <Ionicons name="shield-checkmark-outline" size={22} color={colors.primary} />
+              </View>
+
+              <View style={styles.statusText}>
+                <AppText variant="h3">{friendlyState.title}</AppText>
+                <AppText color={colors.textMuted}>{friendlyState.message}</AppText>
+              </View>
+            </View>
+
+            <View style={styles.badgeRow}>
+              <AppBadge label={profile?.seller_type ?? 'Seller type not set'} variant="neutral" />
+              {profile?.kyc_review_notes ? (
+                <AppBadge label="Admin note available" variant="warning" />
+              ) : null}
+            </View>
+
             {profile?.kyc_review_notes ? (
-              <AppText style={styles.helperText}>
-                Admin note: {profile.kyc_review_notes}
-              </AppText>
+              <View style={styles.noteBox}>
+                <Ionicons name="information-circle-outline" size={16} color={colors.warning} />
+                <AppText color={colors.textMuted}>Admin note: {profile.kyc_review_notes}</AppText>
+              </View>
             ) : null}
           </View>
         </AppCard>
 
         <AppCard>
+          <View style={styles.infoPoints}>
+            <InfoPoint
+              icon="person-outline"
+              title="Identity quality"
+              subtitle="Provide accurate identification details that match your seller profile."
+            />
+            <InfoPoint
+              icon="business-outline"
+              title="Business credibility"
+              subtitle="Agents should include business or registration details where available."
+            />
+            <InfoPoint
+              icon="location-outline"
+              title="Clear address"
+              subtitle="A strong address helps admin review and strengthens trust signals."
+            />
+          </View>
+        </AppCard>
+
+        <AppCard>
           <View style={styles.form}>
-            <AppText style={styles.sectionTitle}>Business & Identity</AppText>
+            <AppText variant="h3">Business & Identity</AppText>
 
             <AppInput
               label="Business / agency name"
@@ -225,13 +296,14 @@ export default function KycScreen() {
               placeholder="Optional information to help review your KYC"
               multiline
             />
+
+            <AppButton
+              title={submitting ? 'Sending...' : friendlyState.actionLabel}
+              onPress={handleSubmit}
+              icon="shield-checkmark-outline"
+            />
           </View>
         </AppCard>
-
-        <AppButton
-          title={submitting ? 'Sending...' : friendlyState.actionLabel}
-          onPress={handleSubmit}
-        />
       </ScrollView>
     </Screen>
   );
@@ -239,28 +311,72 @@ export default function KycScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 60,
   },
-  section: {
-    gap: 8,
+  hero: {
+    gap: spacing.md,
+  },
+  statusBlock: {
+    gap: spacing.md,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  statusIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusText: {
+    flex: 1,
+    gap: 4,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  noteBox: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'flex-start',
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  infoPoints: {
+    gap: spacing.md,
+  },
+  infoPoint: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  infoIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  infoText: {
+    flex: 1,
+    gap: 4,
   },
   form: {
-    gap: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  helperText: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: colors.textMuted,
+    gap: spacing.md,
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+    gap: spacing.md,
   },
   col: {
     flex: 1,

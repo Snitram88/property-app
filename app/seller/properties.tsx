@@ -1,40 +1,37 @@
-import { router, useFocusEffect } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
-import { Image } from 'expo-image';
+import { router, useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
-import { AppCard } from '@/src/components/ui/AppCard';
+import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
+import { EmptyState } from '@/src/components/ui/EmptyState';
+import { SectionHeader } from '@/src/components/ui/SectionHeader';
+import { SellerListingCard } from '@/src/components/property/SellerListingCard';
 import { useAuth } from '@/src/providers/AuthProvider';
-import {
-  PropertyWithMedia,
-  fetchSellerProperties,
-  formatPrice,
-} from '@/src/lib/properties/live-properties';
+import { fetchSellerProperties, PropertyWithMedia } from '@/src/lib/properties/live-properties';
+import { spacing } from '@/src/theme/spacing';
 
 export default function SellerPropertiesScreen() {
   const { user } = useAuth();
-  const [items, setItems] = useState<PropertyWithMedia[]>([]);
+  const [properties, setProperties] = useState<PropertyWithMedia[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      async function loadProperties() {
+      async function load() {
         if (!user?.id) return;
 
         try {
-          const data = await fetchSellerProperties(user.id);
-          if (active) {
-            setItems(data);
-          }
+          const listings = await fetchSellerProperties(user.id);
+          if (active) setProperties(listings);
         } catch (error) {
           console.error('Failed to load seller properties:', error);
         }
       }
 
-      loadProperties();
+      load();
 
       return () => {
         active = false;
@@ -42,55 +39,54 @@ export default function SellerPropertiesScreen() {
     }, [user?.id])
   );
 
+  const approved = properties.filter((item) => item.verification_status === 'approved').length;
+  const pending = properties.filter((item) => item.verification_status === 'pending').length;
+  const rejected = properties.filter((item) => item.verification_status === 'rejected').length;
+
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.container}>
-        <AppText style={styles.title}>My Properties</AppText>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.hero}>
+          <AppBadge label="Seller Listings" variant="primary" />
+          <AppText variant="display">Manage your property portfolio.</AppText>
+          <AppText>
+            Review listing statuses, edit rejected properties, and keep your inventory polished for approval.
+          </AppText>
+        </View>
 
-        <AppButton title="Add New Listing" onPress={() => router.push('/listing/create')} />
+        <View style={styles.statusRow}>
+          <AppBadge label={`Approved ${approved}`} variant="verified" />
+          <AppBadge label={`Pending ${pending}`} variant="warning" />
+          <AppBadge label={`Rejected ${rejected}`} variant="danger" />
+        </View>
 
-        {items.length === 0 ? (
-          <AppCard>
-            <View style={styles.cardContent}>
-              <AppText style={styles.cardTitle}>No listings yet</AppText>
-              <AppText>
-                Create your first property listing with a cover image and gallery to activate the live buyer marketplace.
-              </AppText>
-            </View>
-          </AppCard>
+        <SectionHeader
+          title="Your listings"
+          subtitle="Every listing shows its review state, imagery, and admin feedback."
+          rightSlot={
+            <AppButton title="New Listing" onPress={() => router.push('/listing/create')} icon="add-outline" />
+          }
+        />
+
+        {properties.length === 0 ? (
+          <EmptyState
+            icon="home-outline"
+            title="No listings yet"
+            message="Create your first premium property listing and send it for admin review."
+            actionLabel="Create listing"
+            onAction={() => router.push('/listing/create')}
+          />
         ) : (
-          items.map((property) => (
-            <AppCard key={property.id}>
-              <View style={styles.cardContent}>
-                {property.cover_image_url ? (
-                  <Image source={property.cover_image_url} style={styles.coverImage} contentFit="cover" />
-                ) : null}
-
-                <AppText style={styles.cardTitle}>{property.title}</AppText>
-                <AppText>
-                  {property.listing_type === 'sale'
-                    ? formatPrice(property.price)
-                    : `${formatPrice(property.price)} / year`}
-                </AppText>
-                <AppText>{property.location_text}</AppText>
-                <AppText>
-                  {property.is_published ? 'Published' : 'Draft'} • {property.verification_status} • {property.images.length} images
-                </AppText>
-
-                <View style={styles.actions}>
-                  <AppButton
-                    title="Preview"
-                    onPress={() => router.push(`/property/${property.id}`)}
-                  />
-                  <AppButton
-                    title="Edit"
-                    variant="secondary"
-                    onPress={() => router.push(`/listing/edit/${property.id}`)}
-                  />
-                </View>
-              </View>
-            </AppCard>
-          ))
+          <View style={styles.list}>
+            {properties.map((property) => (
+              <SellerListingCard
+                key={property.id}
+                property={property}
+                onOpen={() => router.push(`/property/${property.id}`)}
+                onEdit={() => router.push(`/listing/edit/${property.id}`)}
+              />
+            ))}
+          </View>
         )}
       </ScrollView>
     </Screen>
@@ -99,28 +95,19 @@ export default function SellerPropertiesScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 120,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '900',
+  hero: {
+    gap: spacing.md,
   },
-  cardContent: {
-    gap: 8,
+  statusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  coverImage: {
-    width: '100%',
-    height: 180,
-    borderRadius: 16,
-    backgroundColor: '#E2E8F0',
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  actions: {
-    gap: 10,
-    marginTop: 8,
+  list: {
+    gap: spacing.lg,
   },
 });

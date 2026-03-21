@@ -4,67 +4,79 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/src/components/ui/AppText';
 import { colors } from '@/src/theme/colors';
+import { radius } from '@/src/theme/radius';
+import { shadows } from '@/src/theme/shadows';
+import { spacing } from '@/src/theme/spacing';
 
 type AppHeaderProps = {
   title: string;
   subtitle?: string;
+  showBack?: boolean;
+  onBackPress?: () => void;
   rightSlot?: ReactNode;
 };
 
-export function AppHeader({ title, subtitle, rightSlot }: AppHeaderProps) {
+export function AppHeader({
+  title,
+  subtitle,
+  showBack = true,
+  onBackPress,
+  rightSlot,
+}: AppHeaderProps) {
   return (
     <View style={styles.wrapper}>
-      <View style={styles.row}>
-        <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={20} color={colors.text} />
-        </Pressable>
+      <View style={styles.leftArea}>
+        {showBack ? (
+          <Pressable
+            onPress={onBackPress ?? (() => router.back())}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
+          </Pressable>
+        ) : null}
 
-        <View style={styles.textWrap}>
-          <AppText style={styles.title}>{title}</AppText>
-          {subtitle ? <AppText style={styles.subtitle}>{subtitle}</AppText> : null}
+        <View style={styles.textGroup}>
+          <AppText variant="h2">{title}</AppText>
+          {subtitle ? (
+            <AppText variant="body" color={colors.textMuted}>
+              {subtitle}
+            </AppText>
+          ) : null}
         </View>
-
-        <View style={styles.rightSlot}>{rightSlot}</View>
       </View>
+
+      {rightSlot ? <View>{rightSlot}</View> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    paddingTop: 8,
-    paddingBottom: 4,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    marginBottom: spacing.md,
   },
-  row: {
+  leftArea: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
+  },
+  textGroup: {
+    flex: 1,
+    gap: 2,
   },
   backButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 50,
+    height: 50,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  textWrap: {
-    flex: 1,
-    gap: 2,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 13,
-    color: colors.textMuted,
-  },
-  rightSlot: {
-    minWidth: 42,
-    alignItems: 'flex-end',
+    ...shadows.soft,
   },
 });

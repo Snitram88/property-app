@@ -55,8 +55,12 @@ export default function SellerProfileScreen() {
         <AppButton title="Open KYC" onPress={() => router.push('/kyc')} />
         <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
         <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
+        <AppButton title="Contact Support" variant="secondary" onPress={() => router.push('/support')} />
         {isAdmin ? (
-          <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />
+          <>
+            <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />
+            <AppButton title="Open Support Inbox" variant="secondary" onPress={() => router.push('/admin/support')} />
+          </>
         ) : null}
         <AppButton title="Switch to Buyer Mode" onPress={switchToBuyer} />
         <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />

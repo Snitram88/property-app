@@ -121,13 +121,28 @@ export default function BuyerProfileScreen() {
               onPress={() => router.push('/home')}
             />
 
+            <ActionRow
+              icon="help-buoy-outline"
+              title="Contact Support"
+              subtitle="Chat with the support bot or escalate to human admin"
+              onPress={() => router.push('/support')}
+            />
+
             {isAdmin ? (
-              <ActionRow
-                icon="shield-checkmark-outline"
-                title="Admin Console"
-                subtitle="Review KYC and listing approvals"
-                onPress={() => router.push('/admin')}
-              />
+              <>
+                <ActionRow
+                  icon="shield-checkmark-outline"
+                  title="Admin Console"
+                  subtitle="Review KYC and listing approvals"
+                  onPress={() => router.push('/admin')}
+                />
+                <ActionRow
+                  icon="headset-outline"
+                  title="Support Inbox"
+                  subtitle="Reply to escalated buyer and seller support threads"
+                  onPress={() => router.push('/admin/support')}
+                />
+              </>
             ) : null}
 
             {hasSellerAccess ? (

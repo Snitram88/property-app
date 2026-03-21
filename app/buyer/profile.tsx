@@ -1,11 +1,40 @@
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '@/src/components/ui/Screen';
+import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppCard } from '@/src/components/ui/AppCard';
-import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { formatRole } from '@/src/lib/app-routing';
+import { colors } from '@/src/theme/colors';
+import { radius } from '@/src/theme/radius';
+import { spacing } from '@/src/theme/spacing';
+
+type ActionRowProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+};
+
+function ActionRow({ icon, title, subtitle, onPress }: ActionRowProps) {
+  return (
+    <Pressable onPress={onPress} style={styles.actionRow}>
+      <View style={styles.actionLeft}>
+        <View style={styles.actionIconWrap}>
+          <Ionicons name={icon} size={20} color={colors.primary} />
+        </View>
+
+        <View style={styles.actionText}>
+          <AppText variant="title">{title}</AppText>
+          <AppText color={colors.textMuted}>{subtitle}</AppText>
+        </View>
+      </View>
+
+      <Ionicons name="chevron-forward" size={20} color={colors.textSoft} />
+    </Pressable>
+  );
+}
 
 export default function BuyerProfileScreen() {
   const { user, profile, roles, hasSellerAccess, setActiveMode, signOut } = useAuth();
@@ -29,52 +58,162 @@ export default function BuyerProfileScreen() {
   }
 
   const isAdmin = roles.includes('admin');
+  const initials =
+    (profile?.full_name ?? user?.email ?? 'U')
+      .split(' ')
+      .slice(0, 2)
+      .map((item) => item.charAt(0).toUpperCase())
+      .join('') || 'U';
 
   return (
     <Screen>
-      <View style={styles.container}>
-        <AppText style={styles.title}>Profile</AppText>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <AppText variant="h1">Profile</AppText>
 
         <AppCard>
-          <View style={styles.section}>
-            <AppText style={styles.name}>{profile?.full_name ?? 'Your account'}</AppText>
-            <AppText>{user?.email ? `Email: ${user.email}` : 'No email available'}</AppText>
-            <AppText>Phone: {profile?.phone ?? 'Not set yet'}</AppText>
-            <AppText>Preferred locations: {profile?.preferred_locations ?? 'Not set yet'}</AppText>
-            <AppText>Roles: {roles.length ? roles.map(formatRole).join(', ') : 'Buyer'}</AppText>
-            <AppText>Current mode: Buyer</AppText>
+          <View style={styles.profileTop}>
+            <View style={styles.avatar}>
+              <AppText variant="h2" color={colors.textInverse}>
+                {initials}
+              </AppText>
+            </View>
+
+            <View style={styles.profileText}>
+              <AppText variant="h3">{profile?.full_name ?? 'Your account'}</AppText>
+              <AppText color={colors.textMuted}>{user?.email ?? 'No email available'}</AppText>
+
+              <View style={styles.badgeRow}>
+                <AppBadge label="Buyer" variant="primary" />
+                {isAdmin ? <AppBadge label="Admin" variant="premium" /> : null}
+                {hasSellerAccess ? <AppBadge label="Seller access" variant="neutral" /> : null}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>Phone: {profile?.phone ?? 'Not set yet'}</AppText>
+          </View>
+
+          <View style={styles.infoRow}>
+            <Ionicons name="location-outline" size={16} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>
+              Preferred locations: {profile?.preferred_locations ?? 'Not set yet'}
+            </AppText>
           </View>
         </AppCard>
 
-        <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
-        <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
-        {isAdmin ? (
-          <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />
-        ) : null}
-        {hasSellerAccess ? (
-          <AppButton title="Switch to Seller Mode" onPress={switchToSeller} />
-        ) : null}
-        <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />
-      </View>
+        <AppCard>
+          <View style={styles.group}>
+            <AppText variant="title">Account Actions</AppText>
+
+            <ActionRow
+              icon="create-outline"
+              title="Edit Profile"
+              subtitle="Refine your buyer details and preferences"
+              onPress={() => router.push('/profile/edit')}
+            />
+
+            <ActionRow
+              icon="business-outline"
+              title="Company Home"
+              subtitle="View the shared premium brand page"
+              onPress={() => router.push('/home')}
+            />
+
+            {isAdmin ? (
+              <ActionRow
+                icon="shield-checkmark-outline"
+                title="Admin Console"
+                subtitle="Review KYC and listing approvals"
+                onPress={() => router.push('/admin')}
+              />
+            ) : null}
+
+            {hasSellerAccess ? (
+              <ActionRow
+                icon="swap-horizontal-outline"
+                title="Switch to Seller Mode"
+                subtitle="Open your seller tools and dashboard"
+                onPress={switchToSeller}
+              />
+            ) : null}
+
+            <ActionRow
+              icon="log-out-outline"
+              title="Sign Out"
+              subtitle="Sign out of this device"
+              onPress={handleSignOut}
+            />
+          </View>
+        </AppCard>
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 120,
+  },
+  profileTop: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileText: {
     flex: 1,
-    padding: 24,
-    gap: 16,
+    gap: spacing.xs,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '900',
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
-  section: {
-    gap: 8,
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
   },
-  name: {
-    fontSize: 20,
-    fontWeight: '800',
+  group: {
+    gap: spacing.md,
+  },
+  actionRow: {
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  actionLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  actionIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionText: {
+    flex: 1,
+    gap: 2,
   },
 });

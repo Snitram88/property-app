@@ -1,35 +1,46 @@
-import { router, useFocusEffect } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
-import { Screen } from '@/src/components/ui/Screen';
-import { AppCard } from '@/src/components/ui/AppCard';
-import { AppButton } from '@/src/components/ui/AppButton';
+import { router, useFocusEffect } from 'expo-router';
 import { AppText } from '@/src/components/ui/AppText';
+import { PropertyCard } from '@/src/components/property/PropertyCard';
+import { EmptyState } from '@/src/components/ui/EmptyState';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { fetchSavedProperties, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
+import {
+  fetchPublishedProperties,
+  formatPrice,
+  PropertyWithMedia,
+} from '@/src/lib/properties/live-properties';
+import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
+import { spacing } from '@/src/theme/spacing';
 
 export default function BuyerSavedScreen() {
   const { user } = useAuth();
-  const [items, setItems] = useState<any[]>([]);
+  const [savedProperties, setSavedProperties] = useState<PropertyWithMedia[]>([]);
+  const [savedRefs, setSavedRefs] = useState<Set<string>>(new Set());
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      async function loadSaved() {
+      async function load() {
         if (!user?.id) return;
 
         try {
-          const data = await fetchSavedProperties(user.id);
-          if (active) {
-            setItems(data);
-          }
+          const [listings, refs] = await Promise.all([
+            fetchPublishedProperties(),
+            fetchSavedPropertyRefs(user.id),
+          ]);
+
+          if (!active) return;
+
+          setSavedRefs(refs);
+          setSavedProperties(listings.filter((item) => refs.has(item.id)));
         } catch (error) {
-          console.error('Failed to load wishlist:', error);
+          console.error('Failed to load saved properties:', error);
         }
       }
 
-      loadSaved();
+      load();
 
       return () => {
         active = false;
@@ -37,86 +48,87 @@ export default function BuyerSavedScreen() {
     }, [user?.id])
   );
 
-  async function handleRemove(item: any) {
+  async function handleRemove(property: PropertyWithMedia) {
     if (!user?.id) return;
 
     try {
       await toggleSavedProperty(user.id, {
-        id: item.property_ref,
-        title: item.property_title,
-        location: item.property_location ?? '',
-        price: item.property_price ?? '',
-        badge: item.property_badge ?? '',
-        listingType: item.property_listing_type ?? '',
+        id: property.id,
+        title: property.title,
+        location: property.location_text,
+        price:
+          property.listing_type === 'sale'
+            ? formatPrice(property.price)
+            : `${formatPrice(property.price)} / year`,
+        badge: property.verification_status === 'approved' ? 'Verified' : 'Awaiting review',
+        listingType: property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1),
       });
 
-      const refreshed = await fetchSavedProperties(user.id);
-      setItems(refreshed);
-    } catch (error: any) {
-      Alert.alert('Remove failed', error?.message ?? 'Please try again.');
+      setSavedRefs((prev) => {
+        const cloned = new Set(prev);
+        cloned.delete(property.id);
+        return cloned;
+      });
+
+      setSavedProperties((prev) => prev.filter((item) => item.id !== property.id));
+    } catch (error) {
+      console.error('Failed to remove saved property:', error);
     }
   }
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.container}>
-        <AppText style={styles.title}>Wishlist</AppText>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.header}>
+        <AppText variant="h1">Wishlist</AppText>
+        <AppText>Homes you want to revisit, compare, and contact later.</AppText>
+      </View>
 
-        {items.length === 0 ? (
-          <AppCard>
-            <View style={styles.cardContent}>
-              <AppText style={styles.cardTitle}>Nothing saved yet</AppText>
-              <AppText>
-                Save properties you want to revisit, compare later, or contact later.
-              </AppText>
-            </View>
-          </AppCard>
-        ) : (
-          items.map((item) => (
-            <AppCard key={item.id}>
-              <View style={styles.cardContent}>
-                <AppText style={styles.cardTitle}>{item.property_title}</AppText>
-                <AppText>{item.property_price}</AppText>
-                <AppText>{item.property_location}</AppText>
-
-                <View style={styles.actions}>
-                  <AppButton
-                    title="View Property"
-                    onPress={() => router.push(`/property/${item.property_ref}`)}
-                  />
-                  <AppButton
-                    title="Remove"
-                    variant="secondary"
-                    onPress={() => handleRemove(item)}
-                  />
-                </View>
-              </View>
-            </AppCard>
-          ))
-        )}
-      </ScrollView>
-    </Screen>
+      {savedProperties.length === 0 ? (
+        <EmptyState
+          icon="heart-outline"
+          title="No saved homes yet"
+          message="Tap the heart icon on any property to save it here for later."
+          actionLabel="Explore listings"
+          onAction={() => router.replace('/buyer')}
+        />
+      ) : (
+        <View style={styles.list}>
+          {savedProperties.map((property) => (
+            <PropertyCard
+              key={property.id}
+              title={property.title}
+              location={property.location_text}
+              price={
+                property.listing_type === 'sale'
+                  ? formatPrice(property.price)
+                  : `${formatPrice(property.price)} / year`
+              }
+              badge={property.verification_status === 'approved' ? 'Verified' : null}
+              listingType={property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)}
+              beds={property.bedrooms}
+              baths={property.bathrooms}
+              imageUrl={property.cover_image_url}
+              saved={savedRefs.has(property.id)}
+              onToggleSave={() => handleRemove(property)}
+              onPress={() => router.push(`/property/${property.id}`)}
+            />
+          ))}
+        </View>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 120,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '900',
+  header: {
+    gap: spacing.xs,
   },
-  cardContent: {
-    gap: 8,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  actions: {
-    gap: 10,
-    marginTop: 8,
+  list: {
+    gap: spacing.lg,
   },
 });

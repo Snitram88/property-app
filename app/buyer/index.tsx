@@ -1,50 +1,52 @@
+import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useCallback, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { Screen } from '@/src/components/ui/Screen';
+import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppCard } from '@/src/components/ui/AppCard';
-import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
-import { colors } from '@/src/theme/colors';
+import { AppButton } from '@/src/components/ui/AppButton';
+import { PropertyCard } from '@/src/components/property/PropertyCard';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
 import {
-  PropertyWithMedia,
   fetchPublishedProperties,
   formatPrice,
-  propertyToSnapshot,
+  PropertyWithMedia,
 } from '@/src/lib/properties/live-properties';
+import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
+import { colors } from '@/src/theme/colors';
+import { spacing } from '@/src/theme/spacing';
+import { shadows } from '@/src/theme/shadows';
+import { radius } from '@/src/theme/radius';
 
-export default function BuyerHomeScreen() {
-  const { profile, user } = useAuth();
-  const [savedRefs, setSavedRefs] = useState<Set<string>>(new Set());
+const FILTERS = ['Verified', 'Lagos', 'Buy', 'Rent', 'Duplex'];
+
+export default function BuyerDiscoverScreen() {
+  const { user, profile } = useAuth();
   const [properties, setProperties] = useState<PropertyWithMedia[]>([]);
+  const [savedRefs, setSavedRefs] = useState<Set<string>>(new Set());
+
+  const incompleteProfile = !profile?.full_name || !profile?.phone;
 
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
-      async function loadData() {
+      async function load() {
         try {
-          const published = await fetchPublishedProperties();
-          if (active) {
-            setProperties(published);
-          }
+          const listings = await fetchPublishedProperties();
+          const saved = user?.id ? await fetchSavedPropertyRefs(user.id) : new Set<string>();
 
-          if (user?.id) {
-            const refs = await fetchSavedPropertyRefs(user.id);
-            if (active) {
-              setSavedRefs(refs);
-            }
-          }
+          if (!active) return;
+
+          setProperties(listings);
+          setSavedRefs(saved);
         } catch (error) {
-          console.error('Failed to load discover feed:', error);
+          console.error('Failed to load discover screen:', error);
         }
       }
 
-      loadData();
+      load();
 
       return () => {
         active = false;
@@ -52,203 +54,158 @@ export default function BuyerHomeScreen() {
     }, [user?.id])
   );
 
+  const featured = useMemo(() => properties.slice(0, 8), [properties]);
+
   async function handleToggleSave(property: PropertyWithMedia) {
     if (!user?.id) {
-      Alert.alert('Sign in required', 'Please sign in to save properties.');
+      router.push('/(auth)/login');
       return;
     }
 
     try {
-      const saved = await toggleSavedProperty(user.id, propertyToSnapshot(property));
-      const next = new Set(savedRefs);
+      const next = await toggleSavedProperty(user.id, {
+        id: property.id,
+        title: property.title,
+        location: property.location_text,
+        price:
+          property.listing_type === 'sale'
+            ? formatPrice(property.price)
+            : `${formatPrice(property.price)} / year`,
+        badge: property.verification_status === 'approved' ? 'Verified' : 'Awaiting review',
+        listingType: property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1),
+      });
 
-      if (saved) {
-        next.add(property.id);
-      } else {
-        next.delete(property.id);
-      }
-
-      setSavedRefs(next);
-    } catch (error: any) {
-      Alert.alert('Save failed', error?.message ?? 'Please try again.');
+      setSavedRefs((prev) => {
+        const cloned = new Set(prev);
+        if (next) cloned.add(property.id);
+        else cloned.delete(property.id);
+        return cloned;
+      });
+    } catch (error) {
+      console.error('Failed to toggle saved property:', error);
     }
   }
 
-  const incompleteProfile = !profile?.full_name || !profile?.phone;
-
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <AppText style={styles.eyebrow}>Buyer Mode</AppText>
-          <AppText style={styles.title}>
-            Welcome{profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : ''}.
-          </AppText>
-          <AppText style={styles.subtitle}>
-            Discover live listings, richer image galleries, and stronger buyer confidence.
-          </AppText>
-        </View>
+    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <View style={styles.hero}>
+        <AppBadge label="Buyer Mode" variant="primary" />
+        <AppText variant="display">Find your next address.</AppText>
+        <AppText color={colors.textMuted}>
+          Verified homes, stronger images, and cleaner discovery built for confident decisions.
+        </AppText>
 
-        {incompleteProfile ? (
-          <AppCard>
-            <View style={styles.banner}>
-              <AppText style={styles.bannerTitle}>Complete your profile</AppText>
-              <AppText style={styles.bannerText}>
-                Add your details now so inquiries, saved properties, and viewing requests work better.
-              </AppText>
-              <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+        <Pressable style={styles.searchBar}>
+          <Ionicons name="search-outline" size={18} color={colors.textMuted} />
+          <AppText color={colors.textMuted}>Search by city, area, property type...</AppText>
+        </Pressable>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
+          {FILTERS.map((filter) => (
+            <AppBadge key={filter} label={filter} variant="neutral" />
+          ))}
+        </ScrollView>
+      </View>
+
+      {incompleteProfile ? (
+        <AppCard style={styles.profileCard}>
+          <View style={styles.profileCardHeader}>
+            <View style={styles.profileIconWrap}>
+              <Ionicons name="person-circle-outline" size={24} color={colors.primary} />
             </View>
-          </AppCard>
-        ) : null}
+            <View style={styles.profileTextGroup}>
+              <AppText variant="h3">Complete your profile</AppText>
+              <AppText color={colors.textMuted}>
+                Add your details so saved homes, messages, and viewing requests work better.
+              </AppText>
+            </View>
+          </View>
 
-        <View style={styles.list}>
-          {properties.length === 0 ? (
-            <AppCard>
-              <View style={styles.banner}>
-                <AppText style={styles.bannerTitle}>No live listings yet</AppText>
-                <AppText style={styles.bannerText}>
-                  Once sellers publish properties with images, the live marketplace will appear here.
-                </AppText>
-              </View>
-            </AppCard>
-          ) : (
-            properties.map((property) => {
-              const isSaved = savedRefs.has(property.id);
+          <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} icon="create-outline" />
+        </AppCard>
+      ) : null}
 
-              return (
-                <AppCard key={property.id}>
-                  <View style={styles.cardContent}>
-                    {property.cover_image_url ? (
-                      <Image source={property.cover_image_url} style={styles.coverImage} contentFit="cover" />
-                    ) : null}
-
-                    <View style={styles.badgeRow}>
-                      <AppText style={styles.badge}>
-                        {property.verification_status === 'approved' ? 'Verified' : 'Live'}
-                      </AppText>
-
-                      <Pressable style={styles.saveButton} onPress={() => handleToggleSave(property)}>
-                        <Ionicons
-                          name={isSaved ? 'heart' : 'heart-outline'}
-                          size={18}
-                          color={isSaved ? '#DC2626' : colors.text}
-                        />
-                        <AppText style={styles.saveText}>{isSaved ? 'Saved' : 'Save'}</AppText>
-                      </Pressable>
-                    </View>
-
-                    <AppText style={styles.cardTitle}>{property.title}</AppText>
-                    <AppText style={styles.price}>
-                      {property.listing_type === 'sale'
-                        ? formatPrice(property.price)
-                        : `${formatPrice(property.price)} / year`}
-                    </AppText>
-                    <AppText style={styles.location}>{property.location_text}</AppText>
-                    <AppText style={styles.meta}>
-                      {property.bedrooms} beds • {property.bathrooms} baths • {property.listing_type}
-                    </AppText>
-
-                    <AppButton
-                      title="View Property"
-                      onPress={() => router.push(`/property/${property.id}`)}
-                    />
-                  </View>
-                </AppCard>
-              );
-            })
-          )}
+      <View style={styles.sectionHeader}>
+        <View>
+          <AppText variant="h2">Featured listings</AppText>
+          <AppText color={colors.textMuted}>Luxury visuals, trusted details, cleaner discovery.</AppText>
         </View>
-      </ScrollView>
-    </Screen>
+      </View>
+
+      <View style={styles.list}>
+        {featured.map((property) => (
+          <PropertyCard
+            key={property.id}
+            title={property.title}
+            location={property.location_text}
+            price={
+              property.listing_type === 'sale'
+                ? formatPrice(property.price)
+                : `${formatPrice(property.price)} / year`
+            }
+            badge={property.verification_status === 'approved' ? 'Verified' : null}
+            listingType={property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)}
+            beds={property.bedrooms}
+            baths={property.bathrooms}
+            imageUrl={property.cover_image_url}
+            saved={savedRefs.has(property.id)}
+            onToggleSave={() => handleToggleSave(property)}
+            onPress={() => router.push(`/property/${property.id}`)}
+          />
+        ))}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 20,
-    gap: 18,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 120,
   },
   hero: {
-    gap: 8,
-    marginTop: 10,
+    gap: spacing.md,
   },
-  eyebrow: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
+  searchBar: {
+    minHeight: 54,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    ...shadows.soft,
   },
-  title: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: colors.text,
+  filterRow: {
+    gap: spacing.sm,
   },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.textMuted,
+  profileCard: {
+    gap: spacing.md,
   },
-  banner: {
-    gap: 10,
+  profileCardHeader: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'flex-start',
   },
-  bannerTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.text,
+  profileIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  bannerText: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: colors.textMuted,
+  profileTextGroup: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  sectionHeader: {
+    gap: spacing.xs,
   },
   list: {
-    gap: 16,
-  },
-  cardContent: {
-    gap: 10,
-  },
-  coverImage: {
-    width: '100%',
-    height: 190,
-    borderRadius: 16,
-    backgroundColor: '#E2E8F0',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  badge: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  saveButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  saveText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  price: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  location: {
-    fontSize: 14,
-    color: colors.textMuted,
-  },
-  meta: {
-    fontSize: 13,
-    color: colors.textMuted,
-    textTransform: 'capitalize',
+    gap: spacing.lg,
   },
 });

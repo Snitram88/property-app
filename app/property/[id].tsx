@@ -5,11 +5,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
+import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { ZoomViewer } from '@/src/components/media/ZoomViewer';
 import { colors } from '@/src/theme/colors';
+import { radius } from '@/src/theme/radius';
+import { spacing } from '@/src/theme/spacing';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSavedPropertyRefs, toggleSavedProperty } from '@/src/lib/properties/saved-properties';
 import {
@@ -26,6 +29,21 @@ import {
   openSms,
   openWhatsApp,
 } from '@/src/lib/contact/property-contact';
+
+function MetaPill({
+  icon,
+  label,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+}) {
+  return (
+    <View style={styles.metaPill}>
+      <Ionicons name={icon} size={15} color={colors.textMuted} />
+      <AppText color={colors.textMuted}>{label}</AppText>
+    </View>
+  );
+}
 
 export default function PropertyDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -45,20 +63,14 @@ export default function PropertyDetailsScreen() {
 
       try {
         const item = await fetchPropertyById(id);
-        if (active) {
-          setProperty(item);
-        }
+        if (active) setProperty(item);
 
         const details = await fetchPropertyContactDetails(id);
-        if (active) {
-          setContact(details);
-        }
+        if (active) setContact(details);
 
         if (user?.id && item?.id) {
           const refs = await fetchSavedPropertyRefs(user.id);
-          if (active) {
-            setSaved(refs.has(item.id));
-          }
+          if (active) setSaved(refs.has(item.id));
         }
       } catch (error) {
         console.error('Failed to load property details:', error);
@@ -79,7 +91,7 @@ export default function PropertyDetailsScreen() {
 
   async function handleSave() {
     if (!user?.id || !property) {
-      Alert.alert('Sign in required', 'Please sign in to save properties.');
+      router.push('/(auth)/login');
       return;
     }
 
@@ -150,10 +162,7 @@ export default function PropertyDetailsScreen() {
       return;
     }
 
-    const subject = property?.title
-      ? `Inquiry about ${property.title}`
-      : 'Property inquiry';
-
+    const subject = property?.title ? `Inquiry about ${property.title}` : 'Property inquiry';
     const body = property?.title
       ? `Hello,\n\nI’m interested in ${property.title}. Please share more details.\n`
       : 'Hello,\n\nI’m interested in your property. Please share more details.\n';
@@ -172,12 +181,12 @@ export default function PropertyDetailsScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         <AppHeader
           title="Property Details"
           subtitle={property?.location_text ?? 'Live listing'}
           rightSlot={
-            <Pressable style={styles.saveIconButton} onPress={handleSave}>
+            <Pressable style={styles.iconButton} onPress={handleSave}>
               <Ionicons
                 name={saved ? 'heart' : 'heart-outline'}
                 size={20}
@@ -187,92 +196,100 @@ export default function PropertyDetailsScreen() {
           }
         />
 
-        <AppText style={styles.propertyTitle}>{property?.title ?? 'Property Details'}</AppText>
+        <View style={styles.heroBlock}>
+          <AppText variant="display">{property?.title ?? 'Property Details'}</AppText>
 
-        {property?.images?.length ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.galleryRow}
-          >
-            {property.images.map((image, index) => (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+            {(property?.images ?? []).map((image, index) => (
               <Pressable key={image.id} onPress={() => openViewer(index)}>
-                <Image
-                  source={image.image_url}
-                  style={styles.galleryImage}
-                  contentFit="cover"
-                />
+                <Image source={image.image_url} style={styles.galleryImage} contentFit="cover" />
               </Pressable>
             ))}
           </ScrollView>
-        ) : null}
+        </View>
 
         <AppCard>
-          <View style={styles.content}>
-            <AppText style={styles.price}>
-              {property
-                ? property.listing_type === 'sale'
-                  ? formatPrice(property.price)
-                  : `${formatPrice(property.price)} / year`
-                : 'Price on request'}
-            </AppText>
-            <AppText style={styles.meta}>
-              {property?.bedrooms ?? 0} beds • {property?.bathrooms ?? 0} baths •{' '}
-              {property?.listing_type ?? 'listing'}
-            </AppText>
-            <AppText style={styles.description}>
-              {property?.description ?? 'This listing will display its live property details here.'}
-            </AppText>
+          <View style={styles.priceBlock}>
+            <View style={styles.priceHeader}>
+              <AppText variant="h1" color={colors.primary}>
+                {property
+                  ? property.listing_type === 'sale'
+                    ? formatPrice(property.price)
+                    : `${formatPrice(property.price)} / year`
+                  : 'Price on request'}
+              </AppText>
+
+              {property?.verification_status === 'approved' ? (
+                <AppBadge label="Verified" variant="verified" />
+              ) : null}
+            </View>
+
+            <View style={styles.metaRow}>
+              <MetaPill icon="bed-outline" label={`${property?.bedrooms ?? 0} Beds`} />
+              <MetaPill icon="water-outline" label={`${property?.bathrooms ?? 0} Baths`} />
+              <MetaPill
+                icon="pricetag-outline"
+                label={property?.listing_type ? property.listing_type.toUpperCase() : 'LISTING'}
+              />
+            </View>
+
+            <AppText>{property?.description ?? 'This listing will display its live property details here.'}</AppText>
           </View>
         </AppCard>
 
         {contact?.is_owner ? (
           <AppCard>
-            <View style={styles.content}>
-              <AppText style={styles.contactTitle}>Seller Preview Mode</AppText>
-              <AppText style={styles.contactText}>
+            <View style={styles.section}>
+              <View style={styles.sectionTitleRow}>
+                <Ionicons name="eye-outline" size={18} color={colors.primary} />
+                <AppText variant="h3">Seller Preview Mode</AppText>
+              </View>
+              <AppText color={colors.textMuted}>
                 You are viewing your own listing. Buyer contact actions are hidden here.
               </AppText>
-              <View style={styles.actions}>
-                <AppButton
-                  title="Edit Listing"
-                  onPress={() => router.push(`/listing/edit/${property?.id}`)}
-                />
-              </View>
+              <AppButton
+                title="Edit Listing"
+                onPress={() => router.push(`/listing/edit/${property?.id}`)}
+                icon="create-outline"
+              />
             </View>
           </AppCard>
         ) : (
           <>
             <AppCard>
-              <View style={styles.content}>
-                <AppText style={styles.contactTitle}>In-App Contact</AppText>
-                <AppText style={styles.contactText}>
-                  Use this to start or continue a tracked conversation inside the app.
+              <View style={styles.section}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+                  <AppText variant="h3">In-App Contact</AppText>
+                </View>
+                <AppText color={colors.textMuted}>
+                  Start a tracked conversation, keep history inside the app, and schedule a viewing.
                 </AppText>
 
-                <View style={styles.actions}>
-                  <AppButton title="Message Owner" onPress={() => router.push(`/inquiry/${id}`)} />
-                  <AppButton
-                    title="Schedule Viewing"
-                    variant="secondary"
-                    onPress={() => router.push(`/viewing/${id}`)}
-                  />
-                </View>
+                <AppButton title="Message Owner" onPress={() => router.push(`/inquiry/${id}`)} icon="chatbubble-outline" />
+                <AppButton
+                  title="Schedule Viewing"
+                  variant="secondary"
+                  onPress={() => router.push(`/viewing/${id}`)}
+                  icon="calendar-outline"
+                />
               </View>
             </AppCard>
 
             <AppCard>
-              <View style={styles.content}>
-                <AppText style={styles.contactTitle}>Quick External Contact</AppText>
-                <AppText style={styles.contactText}>
-                  These buttons open your phone, SMS, WhatsApp, or email app directly and do not
-                  create an in-app message.
+              <View style={styles.section}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="call-outline" size={18} color={colors.primary} />
+                  <AppText variant="h3">Quick External Contact</AppText>
+                </View>
+                <AppText color={colors.textMuted}>
+                  Open your phone, SMS, WhatsApp, or email app directly from here.
                 </AppText>
 
-                <View style={styles.actions}>
-                  <AppButton title="Phone / SMS" variant="secondary" onPress={handlePhoneAction} />
-                  <AppButton title="WhatsApp" variant="secondary" onPress={handleWhatsApp} />
-                  <AppButton title="Email" variant="secondary" onPress={handleEmail} />
+                <View style={styles.quickActions}>
+                  <AppButton title="Phone / SMS" variant="secondary" onPress={handlePhoneAction} icon="call-outline" />
+                  <AppButton title="WhatsApp" variant="secondary" onPress={handleWhatsApp} icon="logo-whatsapp" />
+                  <AppButton title="Email" variant="secondary" onPress={handleEmail} icon="mail-outline" />
                 </View>
               </View>
             </AppCard>
@@ -293,62 +310,63 @@ export default function PropertyDetailsScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 40,
   },
-  saveIconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroBlock: {
+    gap: spacing.md,
+  },
+  iconButton: {
+    width: 50,
+    height: 50,
+    borderRadius: radius.pill,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-  },
-  propertyTitle: {
-    fontSize: 30,
-    fontWeight: '900',
-    color: colors.text,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   galleryRow: {
-    gap: 12,
+    gap: spacing.md,
   },
   galleryImage: {
-    width: 280,
-    height: 220,
-    borderRadius: 18,
-    backgroundColor: '#E2E8F0',
+    width: 300,
+    height: 240,
+    borderRadius: radius.lg,
+    backgroundColor: colors.backgroundMuted,
   },
-  content: {
-    gap: 10,
+  priceBlock: {
+    gap: spacing.md,
   },
-  price: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: colors.primary,
+  priceHeader: {
+    gap: spacing.sm,
   },
-  meta: {
-    fontSize: 14,
-    color: colors.textMuted,
-    textTransform: 'capitalize',
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  description: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.text,
+  metaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-  contactTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: colors.text,
+  section: {
+    gap: spacing.md,
   },
-  contactText: {
-    fontSize: 14,
-    lineHeight: 22,
-    color: colors.textMuted,
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
   },
-  actions: {
-    gap: 12,
+  quickActions: {
+    gap: spacing.sm,
   },
 });

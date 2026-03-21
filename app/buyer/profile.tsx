@@ -128,6 +128,13 @@ export default function BuyerProfileScreen() {
               onPress={() => router.push('/support')}
             />
 
+            <ActionRow
+              icon="game-controller-outline"
+              title="Play X and O"
+              subtitle="Challenge the computer in easy or hard mode"
+              onPress={() => router.push('/game')}
+            />
+
             {isAdmin ? (
               <>
                 <ActionRow

@@ -23,6 +23,7 @@ export default function RootLayout() {
           <Stack.Screen name="listing/create" />
           <Stack.Screen name="listing/edit/[id]" />
           <Stack.Screen name="kyc/index" />
+          <Stack.Screen name="game/index" />
           <Stack.Screen name="support/index" />
           <Stack.Screen name="admin/index" />
           <Stack.Screen name="admin/support" />

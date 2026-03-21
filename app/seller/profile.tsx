@@ -56,6 +56,7 @@ export default function SellerProfileScreen() {
         <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
         <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
         <AppButton title="Contact Support" variant="secondary" onPress={() => router.push('/support')} />
+        <AppButton title="Play X and O" variant="secondary" onPress={() => router.push('/game')} />
         {isAdmin ? (
           <>
             <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />

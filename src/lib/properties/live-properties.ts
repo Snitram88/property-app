@@ -336,11 +336,6 @@ export async function searchPublishedProperties(filters: PropertySearchFilters) 
     query = query.ilike('city', `%${filters.city.trim()}%`);
   }
 
-  if (filters.area?.trim()) {
-    const area = filters.area.trim();
-    query = query.or(`address.ilike.%${area}%,location_text.ilike.%${area}%`);
-  }
-
   if (filters.state?.trim()) {
     query = query.ilike('state', `%${filters.state.trim()}%`);
   }
@@ -355,9 +350,22 @@ export async function searchPublishedProperties(filters: PropertySearchFilters) 
 
   const { data, error } = await query;
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(error.message || 'Failed to search published properties');
+  }
 
-  const properties = (data ?? []) as DatabaseProperty[];
+  let properties = (data ?? []) as DatabaseProperty[];
+
+  if (filters.area?.trim()) {
+    const area = filters.area.trim().toLowerCase();
+
+    properties = properties.filter((property) => {
+      const address = (property.address ?? '').toLowerCase();
+      const locationText = (property.location_text ?? '').toLowerCase();
+      return address.includes(area) || locationText.includes(area);
+    });
+  }
+
   const images = await fetchPropertyImagesByIds(properties.map((property) => property.id));
 
   return attachImages(properties, images);

@@ -1,29 +1,62 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
 import { ImageBackground, StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { AppText } from '@/src/components/ui/AppText';
 import { colors } from '@/src/theme/colors';
+import { useAuth } from '@/src/providers/AuthProvider';
 
-export default function SplashScreen() {
+export default function AppEntryScreen() {
+  const { loading, user, profile } = useAuth();
+  const [splashDone, setSplashDone] = useState(false);
+  const hasRouted = useRef(false);
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('/public');
-    }, 2200);
-
+    const timer = setTimeout(() => setSplashDone(true), 1600);
     return () => clearTimeout(timer);
   }, []);
 
+  const nextRoute = useMemo(() => {
+    if (loading || !splashDone) return null;
+
+    if (!user) {
+      return '/public';
+    }
+
+    const fullName = profile?.full_name?.trim?.() ?? '';
+    const phone = profile?.phone?.trim?.() ?? '';
+    const activeMode =
+      (profile as any)?.active_mode ??
+      (profile as any)?.mode ??
+      'buyer';
+
+    const needsOnboarding = !fullName || !phone;
+
+    if (needsOnboarding) {
+      return '/onboarding';
+    }
+
+    if (activeMode === 'seller') {
+      return '/seller';
+    }
+
+    return '/buyer';
+  }, [loading, splashDone, user, profile]);
+
+  useEffect(() => {
+    if (!nextRoute || hasRouted.current) return;
+    hasRouted.current = true;
+    router.replace(nextRoute as any);
+  }, [nextRoute]);
+
   return (
     <ImageBackground
-      source={{ uri: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80' }}
+      source={{
+        uri: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80',
+      }}
       style={styles.background}
       resizeMode="cover"
     >
-      <LinearGradient
-        colors={['rgba(15,23,42,0.25)', 'rgba(15,23,42,0.72)']}
-        style={styles.overlay}
-      >
+      <View style={styles.overlay}>
         <View style={styles.content}>
           <View style={styles.logoMark}>
             <View style={styles.logoBlockLarge} />
@@ -38,7 +71,7 @@ export default function SplashScreen() {
             Discover premium homes. Manage smarter property operations.
           </AppText>
         </View>
-      </LinearGradient>
+      </View>
     </ImageBackground>
   );
 }
@@ -52,6 +85,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+    backgroundColor: 'rgba(15,23,42,0.58)',
   },
   content: {
     alignItems: 'center',

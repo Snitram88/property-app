@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { GuestAuthGate } from '@/src/components/auth/GuestAuthGate';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppBadge } from '@/src/components/ui/AppBadge';
@@ -54,6 +55,8 @@ export default function PropertyDetailsScreen() {
   const [contact, setContact] = useState<PropertyContactDetails | null>(null);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [authGateVisible, setAuthGateVisible] = useState(false);
+  const [authGateReason, setAuthGateReason] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -89,20 +92,14 @@ export default function PropertyDetailsScreen() {
     [property?.images]
   );
 
-  function showGuestAuthPrompt() {
-    Alert.alert(
-      'Create an account to continue',
-      'You can browse properties freely. Sign in to save listings, message owners, or schedule a viewing.',
-      [
-        { text: 'Maybe later', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-      ]
-    );
+  function openAuthGate(reason: string) {
+    setAuthGateReason(reason);
+    setAuthGateVisible(true);
   }
 
   async function handleSave() {
     if (!user?.id || !property) {
-      showGuestAuthPrompt();
+      openAuthGate('Saving properties to your wishlist requires an account.');
       return;
     }
 
@@ -190,132 +187,186 @@ export default function PropertyDetailsScreen() {
     setViewerVisible(true);
   }
 
+  const isGuest = !user?.id;
+  const isOwner = !!contact?.is_owner;
+
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-        <AppHeader
-          title="Property Details"
-          subtitle={property?.location_text ?? 'Live listing'}
-          rightSlot={
-            <Pressable style={styles.iconButton} onPress={handleSave}>
-              <Ionicons
-                name={saved ? 'heart' : 'heart-outline'}
-                size={20}
-                color={saved ? '#DC2626' : colors.text}
-              />
-            </Pressable>
-          }
-        />
-
-        <View style={styles.heroBlock}>
-          <AppText variant="display">{property?.title ?? 'Property Details'}</AppText>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
-            {(property?.images ?? []).map((image, index) => (
-              <Pressable key={image.id} onPress={() => openViewer(index)}>
-                <Image source={image.image_url} style={styles.galleryImage} contentFit="cover" />
+    <>
+      <Screen>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+          <AppHeader
+            title="Property Details"
+            subtitle={property?.location_text ?? 'Live listing'}
+            rightSlot={
+              <Pressable style={styles.iconButton} onPress={handleSave}>
+                <Ionicons
+                  name={saved ? 'heart' : 'heart-outline'}
+                  size={20}
+                  color={saved ? '#DC2626' : colors.text}
+                />
               </Pressable>
-            ))}
-          </ScrollView>
-        </View>
+            }
+          />
 
-        <AppCard>
-          <View style={styles.priceBlock}>
-            <View style={styles.priceHeader}>
-              <AppText variant="h1" color={colors.primary}>
-                {property
-                  ? property.listing_type === 'sale'
-                    ? formatPrice(property.price)
-                    : `${formatPrice(property.price)} / year`
-                  : 'Price on request'}
-              </AppText>
+          <View style={styles.heroBlock}>
+            <AppText variant="display">{property?.title ?? 'Property Details'}</AppText>
 
-              {property?.verification_status === 'approved' ? (
-                <AppBadge label="Verified" variant="verified" />
-              ) : null}
-            </View>
-
-            <View style={styles.metaRow}>
-              <MetaPill icon="bed-outline" label={`${property?.bedrooms ?? 0} Beds`} />
-              <MetaPill icon="water-outline" label={`${property?.bathrooms ?? 0} Baths`} />
-              <MetaPill
-                icon="pricetag-outline"
-                label={property?.listing_type ? property.listing_type.toUpperCase() : 'LISTING'}
-              />
-            </View>
-
-            <AppText>{property?.description ?? 'This listing will display its live property details here.'}</AppText>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+              {(property?.images ?? []).map((image, index) => (
+                <Pressable key={image.id} onPress={() => openViewer(index)}>
+                  <Image source={image.image_url} style={styles.galleryImage} contentFit="cover" />
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-        </AppCard>
 
-        {contact?.is_owner ? (
           <AppCard>
-            <View style={styles.section}>
-              <View style={styles.sectionTitleRow}>
-                <Ionicons name="eye-outline" size={18} color={colors.primary} />
-                <AppText variant="h3">Seller Preview Mode</AppText>
+            <View style={styles.priceBlock}>
+              <View style={styles.priceHeader}>
+                <AppText variant="h1" color={colors.primary}>
+                  {property
+                    ? property.listing_type === 'sale'
+                      ? formatPrice(property.price)
+                      : `${formatPrice(property.price)} / year`
+                    : 'Price on request'}
+                </AppText>
+
+                {property?.verification_status === 'approved' ? (
+                  <AppBadge label="Verified" variant="verified" />
+                ) : null}
               </View>
-              <AppText color={colors.textMuted}>
-                You are viewing your own listing. Buyer contact actions are hidden here.
+
+              <View style={styles.metaRow}>
+                <MetaPill icon="bed-outline" label={`${property?.bedrooms ?? 0} Beds`} />
+                <MetaPill icon="water-outline" label={`${property?.bathrooms ?? 0} Baths`} />
+                <MetaPill
+                  icon="pricetag-outline"
+                  label={property?.listing_type ? property.listing_type.toUpperCase() : 'LISTING'}
+                />
+              </View>
+
+              <AppText>
+                {property?.description ?? 'This listing will display its live property details here.'}
               </AppText>
-              <AppButton
-                title="Edit Listing"
-                onPress={() => router.push(`/listing/edit/${property?.id}`)}
-                icon="create-outline"
-              />
             </View>
           </AppCard>
-        ) : (
-          <>
+
+          {isGuest ? (
             <AppCard>
               <View style={styles.section}>
                 <View style={styles.sectionTitleRow}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
-                  <AppText variant="h3">In-App Contact</AppText>
+                  <Ionicons name="sparkles-outline" size={18} color={colors.primary} />
+                  <AppText variant="h3">Browse freely. Engage after sign-in.</AppText>
                 </View>
                 <AppText color={colors.textMuted}>
-                  Start a tracked conversation, keep history inside the app, and schedule a viewing.
+                  You can explore listing details and images as a guest. To save this home, message the owner, or schedule a viewing, create an account first.
                 </AppText>
 
-                <AppButton title="Message Owner" onPress={() => router.push(`/inquiry/${id}`)} icon="chatbubble-outline" />
+                <View style={styles.lockedActions}>
+                  <AppButton
+                    title="Save Listing"
+                    variant="secondary"
+                    onPress={() => openAuthGate('Saving listings requires an account so you can keep your wishlist across sessions.')}
+                    icon="heart-outline"
+                  />
+                  <AppButton
+                    title="Message Owner"
+                    variant="secondary"
+                    onPress={() => openAuthGate('Messaging an owner requires an account so your conversation can be tracked securely.')}
+                    icon="chatbubble-outline"
+                  />
+                  <AppButton
+                    title="Schedule Viewing"
+                    variant="secondary"
+                    onPress={() => openAuthGate('Scheduling a viewing requires an account so your request can be tracked and confirmed.')}
+                    icon="calendar-outline"
+                  />
+                </View>
+              </View>
+            </AppCard>
+          ) : isOwner ? (
+            <AppCard>
+              <View style={styles.section}>
+                <View style={styles.sectionTitleRow}>
+                  <Ionicons name="eye-outline" size={18} color={colors.primary} />
+                  <AppText variant="h3">Seller Preview Mode</AppText>
+                </View>
+                <AppText color={colors.textMuted}>
+                  You are viewing your own listing. Buyer contact actions are hidden here.
+                </AppText>
                 <AppButton
-                  title="Schedule Viewing"
-                  variant="secondary"
-                  onPress={() => router.push(`/viewing/${id}`)}
-                  icon="calendar-outline"
+                  title="Edit Listing"
+                  onPress={() => router.push(`/listing/edit/${property?.id}`)}
+                  icon="create-outline"
                 />
               </View>
             </AppCard>
+          ) : (
+            <>
+              <AppCard>
+                <View style={styles.section}>
+                  <View style={styles.sectionTitleRow}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.primary} />
+                    <AppText variant="h3">In-App Contact</AppText>
+                  </View>
+                  <AppText color={colors.textMuted}>
+                    Start a tracked conversation, keep history inside the app, and schedule a viewing.
+                  </AppText>
 
-            <AppCard>
-              <View style={styles.section}>
-                <View style={styles.sectionTitleRow}>
-                  <Ionicons name="call-outline" size={18} color={colors.primary} />
-                  <AppText variant="h3">Quick External Contact</AppText>
+                  <AppButton
+                    title="Message Owner"
+                    onPress={() => router.push(`/inquiry/${id}`)}
+                    icon="chatbubble-outline"
+                  />
+                  <AppButton
+                    title="Schedule Viewing"
+                    variant="secondary"
+                    onPress={() => router.push(`/viewing/${id}`)}
+                    icon="calendar-outline"
+                  />
                 </View>
-                <AppText color={colors.textMuted}>
-                  Open your phone, SMS, WhatsApp, or email app directly from here.
-                </AppText>
+              </AppCard>
 
-                <View style={styles.quickActions}>
-                  <AppButton title="Phone / SMS" variant="secondary" onPress={handlePhoneAction} icon="call-outline" />
-                  <AppButton title="WhatsApp" variant="secondary" onPress={handleWhatsApp} icon="logo-whatsapp" />
-                  <AppButton title="Email" variant="secondary" onPress={handleEmail} icon="mail-outline" />
+              <AppCard>
+                <View style={styles.section}>
+                  <View style={styles.sectionTitleRow}>
+                    <Ionicons name="call-outline" size={18} color={colors.primary} />
+                    <AppText variant="h3">Quick External Contact</AppText>
+                  </View>
+                  <AppText color={colors.textMuted}>
+                    Open your phone, SMS, WhatsApp, or email app directly from here.
+                  </AppText>
+
+                  <View style={styles.quickActions}>
+                    <AppButton title="Phone / SMS" variant="secondary" onPress={handlePhoneAction} icon="call-outline" />
+                    <AppButton title="WhatsApp" variant="secondary" onPress={handleWhatsApp} icon="logo-whatsapp" />
+                    <AppButton title="Email" variant="secondary" onPress={handleEmail} icon="mail-outline" />
+                  </View>
                 </View>
-              </View>
-            </AppCard>
-          </>
-        )}
-      </ScrollView>
+              </AppCard>
+            </>
+          )}
+        </ScrollView>
 
-      <ZoomViewer
-        images={viewerImages}
-        imageIndex={selectedImageIndex}
-        visible={viewerVisible}
-        onRequestClose={() => setViewerVisible(false)}
-        onImageIndexChange={setSelectedImageIndex}
+        <ZoomViewer
+          images={viewerImages}
+          imageIndex={selectedImageIndex}
+          visible={viewerVisible}
+          onRequestClose={() => setViewerVisible(false)}
+          onImageIndexChange={setSelectedImageIndex}
+        />
+      </Screen>
+
+      <GuestAuthGate
+        visible={authGateVisible}
+        reason={authGateReason}
+        onClose={() => setAuthGateVisible(false)}
+        onSignIn={() => {
+          setAuthGateVisible(false);
+          router.push('/(auth)/login');
+        }}
       />
-    </Screen>
+    </>
   );
 }
 
@@ -378,6 +429,9 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   quickActions: {
+    gap: spacing.sm,
+  },
+  lockedActions: {
     gap: spacing.sm,
   },
 });

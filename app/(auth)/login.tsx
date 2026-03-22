@@ -1,57 +1,88 @@
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useState } from 'react';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
-import { AppText } from '@/src/components/ui/AppText';
 import { AppButton } from '@/src/components/ui/AppButton';
-import { AppInput } from '@/src/components/ui/AppInput';
 import { AppCard } from '@/src/components/ui/AppCard';
+import { AppInput } from '@/src/components/ui/AppInput';
+import { AppText } from '@/src/components/ui/AppText';
 import { supabase } from '@/src/lib/supabase/client';
 import { colors } from '@/src/theme/colors';
+import { spacing } from '@/src/theme/spacing';
 
-export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loadingAction, setLoadingAction] = useState<'signin' | 'signup' | null>(null);
+type Mode = 'signin' | 'signup';
 
-  async function signIn() {
-    if (!email || !password) {
-      Alert.alert('Missing details', 'Enter your email and password.');
-      return;
-    }
+async function resolvePostAuthRoute(userId: string) {
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, phone, active_mode')
+    .eq('id', userId)
+    .maybeSingle();
 
-    try {
-      setLoadingAction('signin');
+  const fullName = profile?.full_name?.trim?.() ?? '';
+  const phone = profile?.phone?.trim?.() ?? '';
+  const activeMode = profile?.active_mode ?? 'buyer';
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-
-      if (error) {
-        Alert.alert('Sign in failed', error.message);
-        return;
-      }
-
-      router.replace('/');
-    } finally {
-      setLoadingAction(null);
-    }
+  if (!fullName || !phone) {
+    return '/onboarding';
   }
 
-  async function signUp() {
-    if (!email || !password) {
+  if (activeMode === 'seller') {
+    return '/seller';
+  }
+
+  return '/buyer';
+}
+
+export default function LoginScreen() {
+  const [mode, setMode] = useState<Mode>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit() {
+    if (!email.trim() || !password.trim()) {
       Alert.alert('Missing details', 'Enter your email and password.');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Weak password', 'Use at least 6 characters.');
+    if (mode === 'signup' && password !== confirmPassword) {
+      Alert.alert('Password mismatch', 'Confirm password must match password.');
       return;
     }
 
     try {
-      setLoadingAction('signup');
+      setSubmitting(true);
+
+      if (mode === 'signin') {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) {
+          Alert.alert('Sign in failed', error.message);
+          return;
+        }
+
+        const userId = data.user?.id;
+        if (!userId) {
+          Alert.alert('Sign in failed', 'Could not resolve your account.');
+          return;
+        }
+
+        const nextRoute = await resolvePostAuthRoute(userId);
+        router.replace(nextRoute as any);
+        return;
+      }
 
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
@@ -59,103 +90,150 @@ export default function LoginScreen() {
       });
 
       if (error) {
-        Alert.alert('Sign up failed', error.message);
+        Alert.alert('Account creation failed', error.message);
         return;
       }
 
-      if (data.session) {
-        router.replace('/onboarding/mode');
+      const userId = data.user?.id;
+      const session = data.session;
+
+      if (!userId) {
+        Alert.alert(
+          'Check your email',
+          'Your account was created. Complete verification if your project requires email confirmation.'
+        );
         return;
       }
 
-      Alert.alert(
-        'Account created',
-        'Your account has been created. If email confirmation is enabled, confirm your email before signing in.'
-      );
+      if (!session) {
+        Alert.alert(
+          'Check your email',
+          'Your account was created. Complete verification if your project requires email confirmation.'
+        );
+        return;
+      }
+
+      router.replace('/onboarding');
+    } catch (error: any) {
+      Alert.alert('Something went wrong', error?.message ?? 'Please try again.');
     } finally {
-      setLoadingAction(null);
+      setSubmitting(false);
     }
   }
 
   return (
     <Screen>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <AppText style={styles.eyebrow}>Premium access</AppText>
-          <AppText style={styles.title}>Sign in or create your account</AppText>
-          <AppText style={styles.subtitle}>
-            One account. Buyer Mode and Seller Mode. Clean flows from day one.
-          </AppText>
-        </View>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <AppText variant="h1">
+              {mode === 'signin' ? 'Sign in' : 'Create account'}
+            </AppText>
+            <AppText color={colors.textMuted}>
+              {mode === 'signin'
+                ? 'Access your buyer, seller, and admin experience directly.'
+                : 'Create your account and continue into onboarding.'}
+            </AppText>
+          </View>
 
-        <AppCard>
-          <View style={styles.form}>
-            <AppInput
-              label="Email"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              keyboardType="email-address"
-            />
+          <AppCard>
+            <View style={styles.modeRow}>
+              <View style={styles.modeButton}>
+                <AppButton
+                  title="Sign In"
+                  variant={mode === 'signin' ? 'primary' : 'secondary'}
+                  onPress={() => setMode('signin')}
+                />
+              </View>
+              <View style={styles.modeButton}>
+                <AppButton
+                  title="Create Account"
+                  variant={mode === 'signup' ? 'primary' : 'secondary'}
+                  onPress={() => setMode('signup')}
+                />
+              </View>
+            </View>
+          </AppCard>
 
-            <AppInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter password"
-              secureTextEntry
-            />
-
-            <View style={styles.actions}>
-              <AppButton
-                title={loadingAction === 'signin' ? 'Signing in...' : 'Sign In'}
-                onPress={signIn}
+          <AppCard>
+            <View style={styles.form}>
+              <AppInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Enter your email"
+                keyboardType="email-address"
+                autoCapitalize="none"
               />
+
+              <AppInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Enter your password"
+                secureTextEntry
+              />
+
+              {mode === 'signup' ? (
+                <AppInput
+                  label="Confirm Password"
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Confirm your password"
+                  secureTextEntry
+                />
+              ) : null}
+
               <AppButton
-                title={loadingAction === 'signup' ? 'Creating account...' : 'Create Account'}
+                title={
+                  submitting
+                    ? mode === 'signin'
+                      ? 'Signing in...'
+                      : 'Creating account...'
+                    : mode === 'signin'
+                      ? 'Sign In'
+                      : 'Create Account'
+                }
+                onPress={handleSubmit}
+              />
+
+              <AppButton
+                title="Back to Public Home"
                 variant="secondary"
-                onPress={signUp}
+                onPress={() => router.replace('/public')}
               />
             </View>
-          </View>
-        </AppCard>
-      </ScrollView>
+          </AppCard>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 24,
-    gap: 20,
-    justifyContent: 'center',
-    flexGrow: 1,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 40,
   },
   header: {
-    gap: 8,
+    gap: spacing.xs,
   },
-  eyebrow: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.4,
+  modeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
-  title: {
-    fontSize: 30,
-    lineHeight: 38,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.textMuted,
+  modeButton: {
+    flex: 1,
   },
   form: {
-    gap: 18,
-  },
-  actions: {
-    gap: 12,
-    marginTop: 4,
+    gap: spacing.md,
   },
 });

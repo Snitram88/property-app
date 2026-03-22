@@ -1,8 +1,9 @@
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { GuestAuthGate } from '@/src/components/auth/GuestAuthGate';
 import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppCard } from '@/src/components/ui/AppCard';
@@ -46,6 +47,9 @@ function HeroChip({
 export default function PublicHomeScreen() {
   const [properties, setProperties] = useState<PropertyWithMedia[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [authGateVisible, setAuthGateVisible] = useState(false);
+  const [authGateReason, setAuthGateReason] = useState('');
 
   const [city, setCity] = useState('');
   const [area, setArea] = useState('');
@@ -66,8 +70,8 @@ export default function PublicHomeScreen() {
       });
 
       setProperties(listings);
-    } catch (error) {
-      console.error('Failed to load public listings:', error);
+    } catch (error: any) {
+      console.error('Failed to load public listings:', error?.message ?? error, error);
     } finally {
       setLoading(false);
     }
@@ -87,107 +91,139 @@ export default function PublicHomeScreen() {
     setListingType('');
   }
 
-  function showAuthPrompt() {
-    Alert.alert(
-      'Create an account to continue',
-      'Browse listings freely. To save properties, message owners, schedule viewings, or list a property, please sign up or sign in.',
-      [
-        { text: 'Maybe later', style: 'cancel' },
-        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
-      ]
-    );
+  function openAuthGate(reason: string) {
+    setAuthGateReason(reason);
+    setAuthGateVisible(true);
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.heroCardWrap}>
-        <Image
-          source="https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1400&q=80"
-          style={styles.heroImage}
-          contentFit="cover"
-        />
-        <View style={styles.heroOverlay}>
-          <AppBadge label="Public Discovery" variant="premium" />
-          <AppText style={styles.heroTitle}>
-            Explore premium property listings before you sign in.
-          </AppText>
-          <AppText style={styles.heroSubtitle}>
-            Search by city, area, state, and preference. When you are ready to engage, create an account.
-          </AppText>
-
-          <View style={styles.heroActions}>
-            <AppButton title="Sign In" onPress={() => router.push('/(auth)/login')} icon="log-in-outline" />
-            <AppButton title="List Property" variant="secondary" onPress={showAuthPrompt} icon="add-circle-outline" />
-          </View>
-        </View>
-      </View>
-
-      <AppCard style={styles.searchPanel}>
-        <View style={styles.searchHeader}>
-          <View style={styles.searchTitleRow}>
-            <Ionicons name="search-outline" size={18} color={colors.primary} />
-            <AppText variant="h3">Search Listings</AppText>
-          </View>
-          <AppText color={colors.textMuted}>
-            {loading
-              ? 'Searching listings...'
-              : `${properties.length} listing${properties.length === 1 ? '' : 's'} available`}
-          </AppText>
-        </View>
-
-        <View style={styles.formGroup}>
-          <AppInput
-            label="City"
-            value={city}
-            onChangeText={setCity}
-            placeholder="e.g. Ikeja"
-            autoCapitalize="words"
+    <>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.heroCardWrap}>
+          <Image
+            source="https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1400&q=80"
+            style={styles.heroImage}
+            contentFit="cover"
           />
-          <AppInput
-            label="Area / Address"
-            value={area}
-            onChangeText={setArea}
-            placeholder="e.g. Yaba, Lekki"
-            autoCapitalize="words"
-          />
-          <AppInput
-            label="State"
-            value={stateValue}
-            onChangeText={setStateValue}
-            placeholder="e.g. Lagos"
-            autoCapitalize="words"
-          />
-          <AppInput
-            label="Property Type"
-            value={propertyType}
-            onChangeText={setPropertyType}
-            placeholder="e.g. Duplex, Flat, Land"
-            autoCapitalize="words"
-          />
-        </View>
+          <View style={styles.heroOverlay}>
+            <AppBadge label="Public Discovery" variant="premium" />
+            <AppText style={styles.heroTitle}>
+              Explore premium property listings before you sign in.
+            </AppText>
+            <AppText style={styles.heroSubtitle}>
+              Browse first. Register only when you want to save, message, schedule, or list a property.
+            </AppText>
 
-        <View style={styles.filterSection}>
-          <AppText variant="title">Preference</AppText>
-          <View style={styles.preferenceRow}>
-            {LISTING_TYPES.map((item) => (
-              <View key={item.value} style={styles.preferenceButton}>
-                <HeroChip
-                  label={item.label}
-                  active={listingType === item.value}
-                  onPress={() => setListingType((current) => (current === item.value ? '' : item.value))}
+            <View style={styles.heroActionsRow}>
+              <View style={styles.heroActionHalf}>
+                <AppButton
+                  title="Sign In"
+                  onPress={() => router.push('/(auth)/login')}
+                  icon="log-in-outline"
                 />
               </View>
-            ))}
+              <View style={styles.heroActionHalf}>
+                <AppButton
+                  title="List Property"
+                  variant="secondary"
+                  onPress={() => openAuthGate('Listing a property requires an account so we can onboard you as a seller and verify your identity.')}
+                  icon="add-circle-outline"
+                />
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={styles.actionRow}>
-          <AppButton title={loading ? 'Searching...' : 'Search'} onPress={loadListings} icon="search-outline" />
-          <AppButton title="Clear" variant="secondary" onPress={clearFilters} icon="refresh-outline" />
-        </View>
-      </AppCard>
+        <AppCard style={styles.searchPanel}>
+          <View style={styles.searchHeader}>
+            <View style={styles.searchTitleRow}>
+              <Ionicons name="search-outline" size={18} color={colors.primary} />
+              <AppText variant="h3">Search Listings</AppText>
+            </View>
+            <AppText color={colors.textMuted}>
+              {loading
+                ? 'Searching listings...'
+                : `${properties.length} listing${properties.length === 1 ? '' : 's'} available`}
+            </AppText>
+          </View>
 
-      <View style={styles.publicInfo}>
+          <View style={styles.formGroup}>
+            <AppInput
+              label="City"
+              value={city}
+              onChangeText={setCity}
+              placeholder="e.g. Ikeja"
+              autoCapitalize="words"
+            />
+            <AppInput
+              label="Area / Address"
+              value={area}
+              onChangeText={setArea}
+              placeholder="e.g. Yaba, Lekki"
+              autoCapitalize="words"
+            />
+          </View>
+
+          <View style={styles.filterSection}>
+            <AppText variant="title">Preference</AppText>
+            <View style={styles.preferenceRow}>
+              {LISTING_TYPES.map((item) => (
+                <View key={item.value} style={styles.preferenceButton}>
+                  <HeroChip
+                    label={item.label}
+                    active={listingType === item.value}
+                    onPress={() => setListingType((current) => (current === item.value ? '' : item.value))}
+                  />
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <AppButton
+            title={showMoreFilters ? 'Hide More Filters' : 'More Filters'}
+            variant="secondary"
+            onPress={() => setShowMoreFilters((prev) => !prev)}
+            icon={showMoreFilters ? 'chevron-up-outline' : 'options-outline'}
+          />
+
+          {showMoreFilters ? (
+            <View style={styles.moreFilters}>
+              <AppInput
+                label="State"
+                value={stateValue}
+                onChangeText={setStateValue}
+                placeholder="e.g. Lagos"
+                autoCapitalize="words"
+              />
+              <AppInput
+                label="Property Type"
+                value={propertyType}
+                onChangeText={setPropertyType}
+                placeholder="e.g. Duplex, Flat, Land"
+                autoCapitalize="words"
+              />
+            </View>
+          ) : null}
+
+          <View style={styles.actionRow}>
+            <View style={styles.actionHalf}>
+              <AppButton
+                title={loading ? 'Searching...' : 'Search'}
+                onPress={loadListings}
+                icon="search-outline"
+              />
+            </View>
+            <View style={styles.actionHalf}>
+              <AppButton
+                title="Clear"
+                variant="secondary"
+                onPress={clearFilters}
+                icon="refresh-outline"
+              />
+            </View>
+          </View>
+        </AppCard>
+
         <AppCard>
           <View style={styles.infoBlock}>
             <AppBadge label="Guest Browsing Enabled" variant="verified" />
@@ -197,48 +233,60 @@ export default function PublicHomeScreen() {
             </AppText>
           </View>
         </AppCard>
-      </View>
 
-      <View style={styles.sectionHeader}>
-        <View>
-          <AppText variant="h2">Featured listings</AppText>
-          <AppText color={colors.textMuted}>
-            Publicly visible approved properties across your search preferences.
-          </AppText>
+        <View style={styles.sectionHeader}>
+          <View>
+            <AppText variant="h2">Featured listings</AppText>
+            <AppText color={colors.textMuted}>
+              Publicly visible approved properties across your search preferences.
+            </AppText>
+          </View>
         </View>
-      </View>
 
-      {properties.length === 0 ? (
-        <EmptyState
-          icon="search-outline"
-          title="No listings found"
-          message="Try changing your search filters to see more available properties."
-          actionLabel="Clear filters"
-          onAction={clearFilters}
-        />
-      ) : (
-        <View style={styles.list}>
-          {properties.map((property) => (
-            <PublicPropertyCard
-              key={property.id}
-              title={property.title}
-              location={property.location_text}
-              price={
-                property.listing_type === 'sale'
-                  ? formatPrice(property.price)
-                  : `${formatPrice(property.price)} / year`
-              }
-              listingType={property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)}
-              beds={property.bedrooms}
-              baths={property.bathrooms}
-              imageUrl={property.cover_image_url}
-              onPress={() => router.push(`/property/${property.id}`)}
-              onAuthPrompt={showAuthPrompt}
-            />
-          ))}
-        </View>
-      )}
-    </ScrollView>
+        {properties.length === 0 ? (
+          <EmptyState
+            icon="search-outline"
+            title="No listings found"
+            message="Try changing your search filters to see more available properties."
+            actionLabel="Clear filters"
+            onAction={clearFilters}
+          />
+        ) : (
+          <View style={styles.list}>
+            {properties.map((property) => (
+              <PublicPropertyCard
+                key={property.id}
+                title={property.title}
+                location={property.location_text}
+                price={
+                  property.listing_type === 'sale'
+                    ? formatPrice(property.price)
+                    : `${formatPrice(property.price)} / year`
+                }
+                listingType={property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)}
+                beds={property.bedrooms}
+                baths={property.bathrooms}
+                imageUrl={property.cover_image_url}
+                onPress={() => router.push(`/property/${property.id}`)}
+                onAuthPrompt={() =>
+                  openAuthGate('Save, contact, and viewing actions are reserved for registered users.')
+                }
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      <GuestAuthGate
+        visible={authGateVisible}
+        reason={authGateReason}
+        onClose={() => setAuthGateVisible(false)}
+        onSignIn={() => {
+          setAuthGateVisible(false);
+          router.push('/(auth)/login');
+        }}
+      />
+    </>
   );
 }
 
@@ -251,24 +299,24 @@ const styles = StyleSheet.create({
   heroCardWrap: {
     overflow: 'hidden',
     borderRadius: radius.xl,
-    minHeight: 420,
+    minHeight: 360,
     backgroundColor: colors.backgroundMuted,
   },
   heroImage: {
     width: '100%',
-    height: 420,
+    height: 360,
   },
   heroOverlay: {
     position: 'absolute',
     inset: 0,
-    backgroundColor: 'rgba(15, 23, 42, 0.52)',
+    backgroundColor: 'rgba(15, 23, 42, 0.56)',
     padding: spacing.xl,
     justifyContent: 'flex-end',
     gap: spacing.md,
   },
   heroTitle: {
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 30,
+    lineHeight: 36,
     fontWeight: '900',
     color: colors.white,
   },
@@ -277,8 +325,12 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: 'rgba(255,255,255,0.9)',
   },
-  heroActions: {
+  heroActionsRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
+  },
+  heroActionHalf: {
+    flex: 1,
   },
   searchPanel: {
     gap: spacing.md,
@@ -303,11 +355,15 @@ const styles = StyleSheet.create({
   preferenceButton: {
     marginBottom: spacing.xs,
   },
+  moreFilters: {
+    gap: spacing.md,
+  },
   actionRow: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
-  publicInfo: {
-    gap: spacing.md,
+  actionHalf: {
+    flex: 1,
   },
   infoBlock: {
     gap: spacing.sm,

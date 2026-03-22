@@ -112,6 +112,22 @@ export default function PropertyDetailsScreen() {
     }
   }
 
+  function buildPropertyInquiryMessage() {
+    const title = property?.title ?? 'this property';
+    const location = property?.location_text ? ` located at ${property.location_text}` : '';
+    const address = property?.address ? `\nAddress: ${property.address}.` : '';
+    const listingType = property?.listing_type
+      ? `\nListing type: ${property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)}.`
+      : '';
+    const price = property
+      ? property.listing_type === 'sale'
+        ? `\nPrice: ${formatPrice(property.price)}.`
+        : `\nPrice: ${formatPrice(property.price)} / year.`
+      : '';
+
+    return `Hello, I’m interested in ${title}${location}.${address}${listingType}${price}\nPlease share more details.`;
+  }
+
   async function handlePhoneAction() {
     if (!contact?.seller_phone) {
       Alert.alert('Unavailable', 'Seller phone number is not available.');
@@ -119,9 +135,7 @@ export default function PropertyDetailsScreen() {
     }
 
     const phone = contact.seller_phone;
-    const message = property?.title
-      ? `Hello, I’m interested in ${property.title}.`
-      : 'Hello, I’m interested in your property.';
+    const message = buildPropertyInquiryMessage();
 
     Alert.alert('Phone Contact', 'Choose how you want to reach the seller.', [
       {
@@ -154,9 +168,7 @@ export default function PropertyDetailsScreen() {
       return;
     }
 
-    const message = property?.title
-      ? `Hello, I’m interested in ${property.title}.`
-      : 'Hello, I’m interested in your property.';
+    const message = buildPropertyInquiryMessage();
 
     try {
       await openWhatsApp(contact.seller_whatsapp, message);
@@ -172,9 +184,7 @@ export default function PropertyDetailsScreen() {
     }
 
     const subject = property?.title ? `Inquiry about ${property.title}` : 'Property inquiry';
-    const body = property?.title
-      ? `Hello,\n\nI’m interested in ${property.title}. Please share more details.\n`
-      : 'Hello,\n\nI’m interested in your property. Please share more details.\n';
+    const body = buildPropertyInquiryMessage();
 
     try {
       await openEmail(contact.seller_email, subject, body);

@@ -9,6 +9,7 @@ export type AdminModerationAction =
 
 export type ManageableListing = {
   property_id: string;
+  listing_ref: string | null;
   owner_id: string;
   owner_name: string | null;
   owner_email: string | null;
@@ -28,8 +29,14 @@ export type ManageableListing = {
   cover_image_url: string | null;
 };
 
-export async function fetchManageableListings() {
-  const { data, error } = await supabase.rpc('admin_get_manageable_listings');
+export async function fetchManageableListings(params?: {
+  query?: string;
+  status?: string;
+}) {
+  const { data, error } = await supabase.rpc('admin_search_manageable_listings', {
+    p_query: params?.query?.trim() || null,
+    p_status: params?.status?.trim() || null,
+  });
 
   if (error) throw error;
   return (data ?? []) as ManageableListing[];

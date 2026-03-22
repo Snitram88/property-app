@@ -8,6 +8,7 @@ import { AppHeader } from '@/src/components/navigation/AppHeader';
 import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppCard } from '@/src/components/ui/AppCard';
+import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
 import { EmptyState } from '@/src/components/ui/EmptyState';
 import { ModerationActionModal } from '@/src/components/admin/ModerationActionModal';
@@ -23,6 +24,15 @@ import { colors } from '@/src/theme/colors';
 import { radius } from '@/src/theme/radius';
 import { spacing } from '@/src/theme/spacing';
 
+const STATUS_OPTIONS = [
+  { label: 'All', value: '' },
+  { label: 'Pending', value: 'pending_review' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Rejected', value: 'rejected' },
+  { label: 'Suspended', value: 'suspended' },
+  { label: 'Removed', value: 'removed_by_admin' },
+] as const;
+
 function moderationVariant(status?: string | null) {
   const value = (status ?? '').toLowerCase();
 
@@ -33,6 +43,24 @@ function moderationVariant(status?: string | null) {
   return 'neutral';
 }
 
+function FilterChip({
+  label,
+  active,
+  onPress,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <AppButton
+      title={label}
+      variant={active ? 'primary' : 'secondary'}
+      onPress={onPress}
+    />
+  );
+}
+
 function ListingCard({
   listing,
   onAction,
@@ -41,8 +69,7 @@ function ListingCard({
   onAction: (action: AdminModerationAction, listing: ManageableListing) => void;
 }) {
   const status = listing.moderation_status ?? 'pending_review';
-  const priceLabel =
-    listing.price != null ? formatPrice(listing.price) : null;
+  const priceLabel = listing.price != null ? formatPrice(listing.price) : null;
 
   return (
     <AppCard>
@@ -61,6 +88,10 @@ function ListingCard({
           )}
 
           <View style={styles.topContent}>
+            {listing.listing_ref ? (
+              <AppText style={styles.refText}>{listing.listing_ref}</AppText>
+            ) : null}
+
             <AppText variant="h3">{listing.title}</AppText>
 
             <View style={styles.badges}>
@@ -177,11 +208,17 @@ export default function AdminConsoleScreen() {
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+
   const isAdmin = roles.includes('admin');
 
-  async function loadListings() {
+  async function loadListings(next?: { query?: string; status?: string }) {
     try {
-      const rows = await fetchManageableListings();
+      const rows = await fetchManageableListings({
+        query: next?.query ?? query,
+        status: next?.status ?? statusFilter,
+      });
       setListings(rows);
     } catch (error) {
       console.error('Failed to load admin listings:', error);
@@ -192,26 +229,19 @@ export default function AdminConsoleScreen() {
     useCallback(() => {
       if (!isAdmin) return;
       loadListings();
-    }, [isAdmin])
+    }, [isAdmin, query, statusFilter])
   );
 
-  const pendingListings = useMemo(
-    () => listings.filter((item) => (item.moderation_status ?? 'pending_review') === 'pending_review'),
-    [listings]
-  );
-
-  const liveListings = useMemo(
-    () => listings.filter((item) => item.moderation_status === 'approved'),
-    [listings]
-  );
-
-  const flaggedListings = useMemo(
-    () =>
-      listings.filter((item) =>
+  const summary = useMemo(() => {
+    return {
+      total: listings.length,
+      pending: listings.filter((item) => (item.moderation_status ?? 'pending_review') === 'pending_review').length,
+      approved: listings.filter((item) => item.moderation_status === 'approved').length,
+      flagged: listings.filter((item) =>
         ['rejected', 'suspended', 'removed_by_admin'].includes(item.moderation_status ?? '')
-      ),
-    [listings]
-  );
+      ).length,
+    };
+  }, [listings]);
 
   function openAction(action: AdminModerationAction, listing: ManageableListing) {
     setSelectedAction(action);
@@ -279,104 +309,97 @@ export default function AdminConsoleScreen() {
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           <AppHeader
             title="Admin Console"
-            subtitle="Moderate trust, approve listings, and remove violations from the marketplace"
+            subtitle="Search, filter, and moderate listings at scale"
           />
 
           <View style={styles.hero}>
             <AppBadge label="Moderator Mode" variant="warning" />
-            <AppText variant="display">Trust operations at a glance.</AppText>
+            <AppText variant="display">Moderation built for scale.</AppText>
             <AppText color={colors.textMuted}>
-              Review listings, approve quality submissions, suspend violations, remove bad actors, and restore corrected properties.
+              Search by listing reference, title, seller, or location. Filter by moderation status and act fast.
             </AppText>
 
             <View style={styles.heroBadges}>
-              <AppBadge label={`Pending ${pendingListings.length}`} variant="warning" />
-              <AppBadge label={`Approved ${liveListings.length}`} variant="verified" />
-              <AppBadge label={`Flagged ${flaggedListings.length}`} variant="danger" />
+              <AppBadge label={`Results ${summary.total}`} variant="primary" />
+              <AppBadge label={`Pending ${summary.pending}`} variant="warning" />
+              <AppBadge label={`Approved ${summary.approved}`} variant="verified" />
+              <AppBadge label={`Flagged ${summary.flagged}`} variant="danger" />
             </View>
           </View>
 
-          <View style={styles.section}>
-            <AppText variant="h2">Pending Listing Review</AppText>
-            <AppText color={colors.textMuted}>
-              New listings waiting for approval or rejection.
-            </AppText>
-
-            {pendingListings.length === 0 ? (
-              <EmptyState
-                icon="home-outline"
-                title="No pending listings"
-                message="New listing reviews will appear here."
+          <AppCard>
+            <View style={styles.searchPanel}>
+              <AppInput
+                label="Search listings"
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Search by LST-000001, title, seller name, seller email, or location"
               />
-            ) : (
-              <View style={styles.list}>
-                {pendingListings.map((listing) => (
-                  <ListingCard
-                    key={listing.property_id}
-                    listing={listing}
-                    onAction={openAction}
-                  />
+
+              <View style={styles.filterWrap}>
+                {STATUS_OPTIONS.map((option) => (
+                  <View key={option.value || 'all'} style={styles.filterChip}>
+                    <FilterChip
+                      label={option.label}
+                      active={statusFilter === option.value}
+                      onPress={() => setStatusFilter(option.value)}
+                    />
+                  </View>
                 ))}
               </View>
-            )}
-          </View>
 
-          <View style={styles.section}>
-            <AppText variant="h2">Approved Marketplace Listings</AppText>
-            <AppText color={colors.textMuted}>
-              Active listings that can be suspended or removed if needed.
-            </AppText>
-
-            {liveListings.length === 0 ? (
-              <EmptyState
-                icon="checkmark-circle-outline"
-                title="No approved listings"
-                message="Approved public listings will appear here."
-              />
-            ) : (
-              <View style={styles.list}>
-                {liveListings.map((listing) => (
-                  <ListingCard
-                    key={listing.property_id}
-                    listing={listing}
-                    onAction={openAction}
+              <View style={styles.searchActions}>
+                <View style={styles.searchActionHalf}>
+                  <AppButton
+                    title="Search"
+                    onPress={() => loadListings()}
+                    icon="search-outline"
                   />
-                ))}
-              </View>
-            )}
-          </View>
-
-          <View style={styles.section}>
-            <AppText variant="h2">Flagged / Removed Listings</AppText>
-            <AppText color={colors.textMuted}>
-              Suspended, rejected, or admin-removed listings that may later be restored.
-            </AppText>
-
-            {flaggedListings.length === 0 ? (
-              <EmptyState
-                icon="alert-circle-outline"
-                title="No flagged listings"
-                message="Suspended, rejected, or removed listings will appear here."
-              />
-            ) : (
-              <View style={styles.list}>
-                {flaggedListings.map((listing) => (
-                  <ListingCard
-                    key={listing.property_id}
-                    listing={listing}
-                    onAction={openAction}
+                </View>
+                <View style={styles.searchActionHalf}>
+                  <AppButton
+                    title="Clear"
+                    variant="secondary"
+                    onPress={() => {
+                      setQuery('');
+                      setStatusFilter('');
+                      loadListings({ query: '', status: '' });
+                    }}
+                    icon="refresh-outline"
                   />
-                ))}
+                </View>
               </View>
-            )}
-          </View>
+            </View>
+          </AppCard>
+
+          {listings.length === 0 ? (
+            <EmptyState
+              icon="search-outline"
+              title="No listings found"
+              message="Try another listing reference, title, seller email, or moderation filter."
+            />
+          ) : (
+            <View style={styles.list}>
+              {listings.map((listing) => (
+                <ListingCard
+                  key={listing.property_id}
+                  listing={listing}
+                  onAction={openAction}
+                />
+              ))}
+            </View>
+          )}
         </ScrollView>
       </Screen>
 
       <ModerationActionModal
         visible={!!selectedAction && !!selectedListing}
         action={selectedAction}
-        propertyTitle={selectedListing?.title}
+        propertyTitle={
+          selectedListing?.listing_ref
+            ? `${selectedListing.listing_ref} • ${selectedListing.title}`
+            : selectedListing?.title
+        }
         reason={reason}
         note={note}
         loading={saving}
@@ -408,8 +431,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  section: {
+  searchPanel: {
     gap: spacing.md,
+  },
+  filterWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  filterChip: {
+    minWidth: 120,
+  },
+  searchActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  searchActionHalf: {
+    flex: 1,
   },
   list: {
     gap: spacing.lg,
@@ -438,6 +476,11 @@ const styles = StyleSheet.create({
   topContent: {
     flex: 1,
     gap: spacing.xs,
+  },
+  refText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: colors.primary,
   },
   badges: {
     flexDirection: 'row',

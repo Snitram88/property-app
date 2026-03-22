@@ -81,18 +81,31 @@ export type SellerInquiryItem = {
   conversation_id: string | null;
   property_title: string;
   property_location: string;
+  property_title_snapshot?: string | null;
+  property_location_snapshot?: string | null;
+  property_address_snapshot?: string | null;
+  property_listing_type_snapshot?: string | null;
+  property_price_snapshot?: number | null;
+  property_cover_image_snapshot?: string | null;
 };
 
 export type SellerViewingItem = {
   id: string;
   property_ref: string;
   property_title: string;
+  requester_name?: string | null;
   preferred_date: string;
   preferred_time: string;
   phone: string;
   notes: string | null;
   status: string;
   created_at: string;
+  property_title_snapshot?: string | null;
+  property_location_snapshot?: string | null;
+  property_address_snapshot?: string | null;
+  property_listing_type_snapshot?: string | null;
+  property_price_snapshot?: number | null;
+  property_cover_image_snapshot?: string | null;
 };
 
 function toNumber(value: string, fallback = 0) {

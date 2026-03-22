@@ -182,6 +182,20 @@ export default function SellerDashboardScreen() {
           />
 
           <ActionTile
+            icon="mail-open-outline"
+            title="Buyer Inquiries"
+            subtitle="Open the inbox with snapshot image, property title, and location context."
+            onPress={() => router.push('/seller/inquiries')}
+          />
+
+          <ActionTile
+            icon="calendar-outline"
+            title="Viewing Requests"
+            subtitle="See each viewing request with the attached property context."
+            onPress={() => router.push('/seller/viewings')}
+          />
+
+          <ActionTile
             icon="person-circle-outline"
             title="Seller Profile"
             subtitle="Control your account, company identity, and mode switching."

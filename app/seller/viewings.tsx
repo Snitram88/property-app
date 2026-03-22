@@ -1,6 +1,6 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
@@ -9,26 +9,31 @@ import { EmptyState } from '@/src/components/ui/EmptyState';
 import { SellerViewingCard } from '@/src/components/seller/SellerViewingCard';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSellerViewingRequests } from '@/src/lib/properties/live-properties';
+import { updateViewingLeadStatus } from '@/src/lib/seller/lead-actions';
 import { spacing } from '@/src/theme/spacing';
 
 export default function SellerViewingsScreen() {
   const { user } = useAuth();
   const [requests, setRequests] = useState<any[]>([]);
 
+  async function loadRequests() {
+    if (!user?.id) return;
+
+    try {
+      const rows = await fetchSellerViewingRequests(user.id);
+      setRequests(rows);
+    } catch (error) {
+      console.error('Failed to load seller viewing requests:', error);
+    }
+  }
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
       async function load() {
-        if (!user?.id) return;
-
-        try {
-          const rows = await fetchSellerViewingRequests(user.id);
-          if (!active) return;
-          setRequests(rows);
-        } catch (error) {
-          console.error('Failed to load seller viewing requests:', error);
-        }
+        if (!active) return;
+        await loadRequests();
       }
 
       load();
@@ -38,6 +43,28 @@ export default function SellerViewingsScreen() {
       };
     }, [user?.id])
   );
+
+  async function handleConfirmViewing(id: string) {
+    try {
+      await updateViewingLeadStatus(id, 'confirmed');
+      await loadRequests();
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.message ?? 'Could not confirm viewing.');
+    }
+  }
+
+  async function handleCloseLead(id: string) {
+    try {
+      await updateViewingLeadStatus(id, 'closed');
+      await loadRequests();
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.message ?? 'Could not close viewing lead.');
+    }
+  }
+
+  function handleReschedule(id: string) {
+    router.push(`/seller/viewing-reschedule/${id}` as any);
+  }
 
   return (
     <Screen>
@@ -79,6 +106,9 @@ export default function SellerViewingsScreen() {
                 propertyListingType={item.property_listing_type_snapshot}
                 propertyPrice={item.property_price_snapshot}
                 propertyImage={item.property_cover_image_snapshot}
+                onConfirmViewing={() => handleConfirmViewing(item.id)}
+                onReschedule={() => handleReschedule(item.id)}
+                onCloseLead={() => handleCloseLead(item.id)}
               />
             ))}
           </View>

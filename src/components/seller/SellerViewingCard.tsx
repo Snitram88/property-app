@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { AppBadge } from '@/src/components/ui/AppBadge';
+import { AppButton } from '@/src/components/ui/AppButton';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppText } from '@/src/components/ui/AppText';
 import { formatPrice } from '@/src/lib/properties/live-properties';
@@ -23,13 +24,17 @@ type SellerViewingCardProps = {
   propertyListingType?: string | null;
   propertyPrice?: number | null;
   propertyImage?: string | null;
+  onConfirmViewing?: () => void;
+  onReschedule?: () => void;
+  onCloseLead?: () => void;
 };
 
 function statusVariant(status?: string | null) {
   const value = (status ?? '').toLowerCase();
   if (value.includes('pending')) return 'warning';
   if (value.includes('approved') || value.includes('confirmed')) return 'verified';
-  if (value.includes('cancel') || value.includes('declined')) return 'danger';
+  if (value.includes('rescheduled')) return 'primary';
+  if (value.includes('cancel') || value.includes('declined') || value.includes('closed')) return 'danger';
   return 'neutral';
 }
 
@@ -47,9 +52,14 @@ export function SellerViewingCard({
   propertyListingType,
   propertyPrice,
   propertyImage,
+  onConfirmViewing,
+  onReschedule,
+  onCloseLead,
 }: SellerViewingCardProps) {
   const priceLabel =
     propertyPrice != null ? formatPrice(propertyPrice) : null;
+
+  const normalizedStatus = (status ?? '').toLowerCase();
 
   return (
     <AppCard>
@@ -117,6 +127,34 @@ export function SellerViewingCard({
             <AppText>{notes}</AppText>
           </View>
         ) : null}
+
+        <View style={styles.actions}>
+          {normalizedStatus !== 'confirmed' && normalizedStatus !== 'closed' ? (
+            <AppButton
+              title="Confirm Viewing"
+              variant="secondary"
+              onPress={onConfirmViewing ?? (() => {})}
+              icon="calendar-clear-outline"
+            />
+          ) : null}
+
+          {normalizedStatus !== 'closed' ? (
+            <AppButton
+              title="Reschedule"
+              variant="secondary"
+              onPress={onReschedule ?? (() => {})}
+              icon="time-outline"
+            />
+          ) : null}
+
+          {normalizedStatus !== 'closed' ? (
+            <AppButton
+              title="Close Lead"
+              onPress={onCloseLead ?? (() => {})}
+              icon="checkmark-done-outline"
+            />
+          ) : null}
+        </View>
       </View>
     </AppCard>
   );
@@ -177,5 +215,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceSoft,
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  actions: {
+    gap: spacing.sm,
   },
 });

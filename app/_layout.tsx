@@ -18,6 +18,7 @@ export default function RootLayout() {
           <Stack.Screen name="seller" />
           <Stack.Screen name="seller/inquiries" />
           <Stack.Screen name="seller/viewings" />
+          <Stack.Screen name="seller/viewing-reschedule/[id]" />
           <Stack.Screen name="property/[id]" />
           <Stack.Screen name="messages/[conversationId]" />
           <Stack.Screen name="inquiry/[propertyId]" options={{ presentation: 'modal' }} />

@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
@@ -9,26 +9,31 @@ import { EmptyState } from '@/src/components/ui/EmptyState';
 import { SellerInquiryCard } from '@/src/components/seller/SellerInquiryCard';
 import { useAuth } from '@/src/providers/AuthProvider';
 import { fetchSellerInquiries } from '@/src/lib/properties/live-properties';
+import { updateInquiryLeadStatus } from '@/src/lib/seller/lead-actions';
 import { spacing } from '@/src/theme/spacing';
 
 export default function SellerInquiriesScreen() {
   const { user } = useAuth();
   const [inquiries, setInquiries] = useState<any[]>([]);
 
+  async function loadInquiries() {
+    if (!user?.id) return;
+
+    try {
+      const rows = await fetchSellerInquiries(user.id);
+      setInquiries(rows);
+    } catch (error) {
+      console.error('Failed to load seller inquiries:', error);
+    }
+  }
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
 
       async function load() {
-        if (!user?.id) return;
-
-        try {
-          const rows = await fetchSellerInquiries(user.id);
-          if (!active) return;
-          setInquiries(rows);
-        } catch (error) {
-          console.error('Failed to load seller inquiries:', error);
-        }
+        if (!active) return;
+        await loadInquiries();
       }
 
       load();
@@ -38,6 +43,24 @@ export default function SellerInquiriesScreen() {
       };
     }, [user?.id])
   );
+
+  async function handleMarkContacted(id: string) {
+    try {
+      await updateInquiryLeadStatus(id, 'contacted');
+      await loadInquiries();
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.message ?? 'Could not update inquiry status.');
+    }
+  }
+
+  async function handleCloseLead(id: string) {
+    try {
+      await updateInquiryLeadStatus(id, 'closed');
+      await loadInquiries();
+    } catch (error: any) {
+      Alert.alert('Update failed', error?.message ?? 'Could not close inquiry lead.');
+    }
+  }
 
   return (
     <Screen>
@@ -78,6 +101,8 @@ export default function SellerInquiriesScreen() {
                 propertyListingType={item.property_listing_type_snapshot}
                 propertyPrice={item.property_price_snapshot}
                 propertyImage={item.property_cover_image_snapshot}
+                onMarkContacted={() => handleMarkContacted(item.id)}
+                onCloseLead={() => handleCloseLead(item.id)}
               />
             ))}
           </View>

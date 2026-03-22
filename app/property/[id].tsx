@@ -89,9 +89,20 @@ export default function PropertyDetailsScreen() {
     [property?.images]
   );
 
+  function showGuestAuthPrompt() {
+    Alert.alert(
+      'Create an account to continue',
+      'You can browse properties freely. Sign in to save listings, message owners, or schedule a viewing.',
+      [
+        { text: 'Maybe later', style: 'cancel' },
+        { text: 'Sign In', onPress: () => router.push('/(auth)/login') },
+      ]
+    );
+  }
+
   async function handleSave() {
     if (!user?.id || !property) {
-      router.push('/(auth)/login');
+      showGuestAuthPrompt();
       return;
     }
 

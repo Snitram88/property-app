@@ -315,6 +315,54 @@ export function propertyToSnapshot(property: PropertyWithMedia | DatabasePropert
   };
 }
 
+
+export type PropertySearchFilters = {
+  city?: string;
+  area?: string;
+  state?: string;
+  propertyType?: string;
+  listingType?: 'rent' | 'lease' | 'sale' | '';
+};
+
+export async function searchPublishedProperties(filters: PropertySearchFilters) {
+  let query = supabase
+    .from('properties')
+    .select('*')
+    .eq('is_published', true)
+    .eq('verification_status', 'approved')
+    .order('created_at', { ascending: false });
+
+  if (filters.city?.trim()) {
+    query = query.ilike('city', `%${filters.city.trim()}%`);
+  }
+
+  if (filters.area?.trim()) {
+    const area = filters.area.trim();
+    query = query.or(`address.ilike.%${area}%,location_text.ilike.%${area}%`);
+  }
+
+  if (filters.state?.trim()) {
+    query = query.ilike('state', `%${filters.state.trim()}%`);
+  }
+
+  if (filters.propertyType?.trim()) {
+    query = query.ilike('property_type', `%${filters.propertyType.trim()}%`);
+  }
+
+  if (filters.listingType?.trim()) {
+    query = query.eq('listing_type', filters.listingType.trim());
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  const properties = (data ?? []) as DatabaseProperty[];
+  const images = await fetchPropertyImagesByIds(properties.map((property) => property.id));
+
+  return attachImages(properties, images);
+}
+
 export async function fetchPublishedProperties() {
   const { data, error } = await supabase
     .from('properties')

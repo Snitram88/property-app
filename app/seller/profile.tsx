@@ -1,22 +1,25 @@
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
-import { AppCard } from '@/src/components/ui/AppCard';
+import { AppBadge } from '@/src/components/ui/AppBadge';
 import { AppButton } from '@/src/components/ui/AppButton';
+import { AppCard } from '@/src/components/ui/AppCard';
 import { AppText } from '@/src/components/ui/AppText';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { formatRole } from '@/src/lib/app-routing';
-import { formatVerificationStatus } from '@/src/lib/admin/verification';
+import { colors } from '@/src/theme/colors';
+import { spacing } from '@/src/theme/spacing';
 
 export default function SellerProfileScreen() {
-  const { user, profile, roles, signOut, setActiveMode } = useAuth();
+  const { user, profile, roles, setActiveMode, signOut } = useAuth();
 
-  async function switchToBuyer() {
+  const isAdmin = roles.includes('admin');
+
+  async function handleSwitchToBuyer() {
     try {
       await setActiveMode('buyer');
       router.replace('/buyer');
     } catch (error: any) {
-      Alert.alert('Mode switch failed', error?.message ?? 'Please try again.');
+      Alert.alert('Switch failed', error?.message ?? 'Please try again.');
     }
   }
 
@@ -24,67 +27,128 @@ export default function SellerProfileScreen() {
     try {
       await signOut();
       router.replace('/');
-    } catch {
-      Alert.alert('Sign out failed', 'Please try again.');
+    } catch (error: any) {
+      Alert.alert('Sign out failed', error?.message ?? 'Please try again.');
     }
   }
 
-  const isAdmin = roles.includes('admin');
-
   return (
     <Screen>
-      <View style={styles.container}>
-        <AppText style={styles.title}>Profile</AppText>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <AppText variant="h1">Profile</AppText>
+          <AppText color={colors.textMuted}>
+            Seller account, verification, admin access, and switching.
+          </AppText>
+        </View>
 
         <AppCard>
-          <View style={styles.section}>
-            <AppText style={styles.name}>{profile?.full_name ?? 'Your seller account'}</AppText>
-            <AppText>{user?.email ? `Email: ${user.email}` : 'No email available'}</AppText>
+          <View style={styles.accountBlock}>
+            <AppText variant="h3">Your seller account</AppText>
+            <AppText>Email: {user?.email ?? 'Not available'}</AppText>
             <AppText>Phone: {profile?.phone ?? 'Not set yet'}</AppText>
             <AppText>WhatsApp: {profile?.whatsapp_number ?? 'Not set yet'}</AppText>
             <AppText>Seller type: {profile?.seller_type ?? 'Not set yet'}</AppText>
             <AppText>Company: {profile?.company_name ?? 'Not set yet'}</AppText>
             <AppText>
-              Seller verification: {formatVerificationStatus(profile?.seller_verification_status)}
+              Seller verification:{' '}
+              {profile?.seller_verification_status ?? 'Unverified'}
             </AppText>
-            <AppText>Roles: {roles.length ? roles.map(formatRole).join(', ') : 'Buyer'}</AppText>
+            <AppText>
+              Roles: {roles.length ? roles.join(', ') : 'No roles found'}
+            </AppText>
             <AppText>Current mode: Seller</AppText>
+
+            <View style={styles.badgeRow}>
+              <AppBadge label="Seller Mode" variant="primary" />
+              {isAdmin ? <AppBadge label="Admin Access" variant="premium" /> : null}
+            </View>
           </View>
         </AppCard>
 
-        <AppButton title="Open KYC" onPress={() => router.push('/kyc')} />
-        <AppButton title="Edit Profile" onPress={() => router.push('/profile/edit')} />
-        <AppButton title="Open Company Home" variant="secondary" onPress={() => router.push('/home')} />
-        <AppButton title="Contact Support" variant="secondary" onPress={() => router.push('/support')} />
-        <AppButton title="Play X and O" variant="secondary" onPress={() => router.push('/game')} />
-        {isAdmin ? (
-          <>
-            <AppButton title="Open Admin Console" variant="secondary" onPress={() => router.push('/admin')} />
-            <AppButton title="Open Support Inbox" variant="secondary" onPress={() => router.push('/admin/support')} />
-          </>
-        ) : null}
-        <AppButton title="Switch to Buyer Mode" onPress={switchToBuyer} />
-        <AppButton title="Sign Out" variant="secondary" onPress={handleSignOut} />
-      </View>
+        <View style={styles.actions}>
+          <AppButton
+            title="Open KYC"
+            onPress={() => router.push('/kyc')}
+          />
+
+          <AppButton
+            title="Edit Profile"
+            onPress={() => router.push('/profile/edit')}
+          />
+
+          <AppButton
+            title="Open Company Home"
+            variant="secondary"
+            onPress={() => router.push('/home')}
+          />
+
+          <AppButton
+            title="Contact Support"
+            variant="secondary"
+            onPress={() => router.push('/support')}
+          />
+
+          <AppButton
+            title="Play X and O"
+            variant="secondary"
+            onPress={() => router.push('/game')}
+          />
+
+          {isAdmin ? (
+            <>
+              <AppButton
+                title="Open Admin Console"
+                variant="secondary"
+                onPress={() => router.push('/admin')}
+              />
+
+              <AppButton
+                title="Open Support Inbox"
+                variant="secondary"
+                onPress={() => router.push('/admin/support')}
+              />
+            </>
+          ) : null}
+
+          <AppButton
+            title="Switch to Buyer Mode"
+            onPress={handleSwitchToBuyer}
+          />
+
+          <AppButton
+            title="Sign Out"
+            variant="secondary"
+            onPress={handleSignOut}
+          />
+        </View>
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    padding: 24,
-    gap: 16,
+    padding: spacing.lg,
+    gap: spacing.lg,
+    paddingBottom: 160,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: '900',
+  header: {
+    gap: spacing.xs,
   },
-  section: {
-    gap: 8,
+  accountBlock: {
+    gap: spacing.sm,
   },
-  name: {
-    fontSize: 20,
-    fontWeight: '800',
+  badgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+  },
+  actions: {
+    gap: spacing.md,
   },
 });

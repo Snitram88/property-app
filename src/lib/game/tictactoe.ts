@@ -13,11 +13,22 @@ export const WINNING_LINES: number[][] = [
   [2, 4, 6],
 ];
 
-export function calculateWinner(board: CellValue[]): Winner {
-  for (const [a, b, c] of WINNING_LINES) {
+export function getWinningLine(board: CellValue[]) {
+  for (const line of WINNING_LINES) {
+    const [a, b, c] = line;
     if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return board[a];
+      return line;
     }
+  }
+
+  return null;
+}
+
+export function calculateWinner(board: CellValue[]): Winner {
+  const winningLine = getWinningLine(board);
+
+  if (winningLine) {
+    return board[winningLine[0]];
   }
 
   if (board.every(Boolean)) return 'draw';

@@ -1,55 +1,41 @@
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Screen } from '@/src/components/ui/Screen';
 import { AppHeader } from '@/src/components/navigation/AppHeader';
+import { PropertyContextCard } from '@/src/components/property/PropertyContextCard';
 import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppInput } from '@/src/components/ui/AppInput';
 import { AppText } from '@/src/components/ui/AppText';
 import { colors } from '@/src/theme/colors';
 import { useAuth } from '@/src/providers/AuthProvider';
-import { PropertyWithMedia, fetchPropertyById } from '@/src/lib/properties/live-properties';
-import { startPropertyConversation } from '@/src/lib/chat/conversations';
+import { supabase } from '@/src/lib/supabase/client';
+import { fetchPropertyById, formatPrice } from '@/src/lib/properties/live-properties';
 
 export default function InquiryComposerScreen() {
   const { propertyId } = useLocalSearchParams<{ propertyId: string }>();
   const { user, profile } = useAuth();
-  const [property, setProperty] = useState<PropertyWithMedia | null>(null);
 
+  const [property, setProperty] = useState<any | null>(null);
   const [fullName, setFullName] = useState(profile?.full_name ?? '');
   const [phone, setPhone] = useState(profile?.phone ?? '');
+  const [preferredContact, setPreferredContact] = useState<'phone' | 'whatsapp' | 'email'>('phone');
   const [message, setMessage] = useState('Hello, I’m interested in this property. Please share more details.');
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (profile?.full_name) setFullName(profile.full_name);
-    if (profile?.phone) setPhone(profile.phone);
-  }, [profile?.full_name, profile?.phone]);
 
   useEffect(() => {
     let active = true;
 
     async function loadProperty() {
       if (!propertyId) return;
-
       try {
         const data = await fetchPropertyById(propertyId);
-
         if (!active) return;
-
         setProperty(data);
 
         if (data?.title) {
-          setMessage(`Hello, I’m interested in ${data.title}. Please share more details.`);
-        }
-
-        if (data?.owner_id && user?.id && data.owner_id === user.id) {
-          Alert.alert(
-            'Seller Preview Mode',
-            'You cannot message your own listing.',
-            [{ text: 'OK', onPress: () => router.back() }]
-          );
+          setMessage(`Hello, I’m interested in ${data.title} located at ${data.location_text}. Please share more details.`);
         }
       } catch (error) {
         console.error('Failed to load inquiry property:', error);
@@ -61,7 +47,19 @@ export default function InquiryComposerScreen() {
     return () => {
       active = false;
     };
-  }, [propertyId, user?.id]);
+  }, [propertyId]);
+
+  useEffect(() => {
+    if (profile?.full_name) setFullName(profile.full_name);
+    if (profile?.phone) setPhone(profile.phone);
+  }, [profile?.full_name, profile?.phone]);
+
+  const priceLabel = useMemo(() => {
+    if (!property) return null;
+    return property.listing_type === 'sale'
+      ? formatPrice(property.price)
+      : `${formatPrice(property.price)} / year`;
+  }, [property]);
 
   async function submitInquiry() {
     if (!fullName.trim() || !phone.trim() || !message.trim()) {
@@ -69,101 +67,134 @@ export default function InquiryComposerScreen() {
       return;
     }
 
-    if (!property?.id || !property.owner_id || !user?.id) {
-      Alert.alert('Unavailable', 'This property is not ready for conversations yet.');
-      return;
-    }
-
-    if (property.owner_id === user.id) {
-      Alert.alert('Seller Preview Mode', 'You cannot message your own listing.');
-      return;
-    }
-
     try {
       setSubmitting(true);
 
-      const conversationId = await startPropertyConversation({
-        propertyId: property.id,
-        landlordId: property.owner_id,
-        senderName: fullName.trim(),
-        senderEmail: user.email ?? null,
-        senderPhone: phone.trim(),
-        message: message.trim(),
-        preferredContact: 'in_app',
+      const { data: liveProperty, error: propertyError } = await supabase
+        .from('properties')
+        .select('id, owner_id, title, location_text, address, listing_type, price, latitude, longitude')
+        .eq('id', propertyId)
+        .maybeSingle();
+
+      if (propertyError) {
+        Alert.alert('Property error', propertyError.message);
+        return;
+      }
+
+      if (!liveProperty?.id || !liveProperty?.owner_id) {
+        Alert.alert('Unavailable', 'This property is no longer available for inquiry.');
+        return;
+      }
+
+      const coverImage =
+        property?.images?.find((item: any) => item.is_cover)?.image_url ??
+        property?.cover_image_url ??
+        null;
+
+      const composedMessage = `${message.trim()}\n\nPreferred contact: ${preferredContact}`;
+
+      const { error } = await supabase.from('inquiries').insert({
+        property_id: liveProperty.id,
+        landlord_id: liveProperty.owner_id,
+        sender_name: fullName.trim(),
+        sender_email: user?.email ?? null,
+        sender_phone: phone.trim(),
+        message: composedMessage,
+        property_title_snapshot: liveProperty.title,
+        property_location_snapshot: liveProperty.location_text,
+        property_address_snapshot: liveProperty.address,
+        property_listing_type_snapshot: liveProperty.listing_type,
+        property_price_snapshot: liveProperty.price,
+        property_cover_image_snapshot: coverImage,
+        property_latitude_snapshot: liveProperty.latitude,
+        property_longitude_snapshot: liveProperty.longitude,
       });
 
-      Alert.alert('Conversation started', 'Your in-app message has been sent to the seller.');
-      router.replace(`/messages/${conversationId}`);
-    } catch (error: any) {
-      Alert.alert('Message failed', error?.message ?? 'Please try again.');
+      if (error) {
+        Alert.alert('Inquiry failed', error.message);
+        return;
+      }
+
+      Alert.alert('Inquiry sent', 'Your message has been sent with the property context attached.');
+      router.replace('/buyer/messages');
     } finally {
       setSubmitting(false);
     }
   }
 
-  const isOwner = property?.owner_id && user?.id ? property.owner_id === user.id : false;
-
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <AppHeader
-          title="Message Owner"
-          subtitle={property?.title ?? 'In-app conversation'}
-        />
+        <AppHeader title="Message Owner" subtitle="Your inquiry will include the property details automatically" />
 
-        {isOwner ? (
-          <AppCard>
-            <View style={styles.notice}>
-              <AppText style={styles.noticeTitle}>Seller Preview Mode</AppText>
-              <AppText style={styles.noticeText}>
-                This is your own listing, so in-app messaging is disabled here.
-              </AppText>
-              <AppButton title="Back" onPress={() => router.back()} />
-            </View>
-          </AppCard>
-        ) : (
-          <>
-            <AppCard>
-              <View style={styles.form}>
-                <AppText style={styles.helperText}>
-                  This sends an in-app message and creates or continues a conversation thread inside the app.
-                </AppText>
+        {property ? (
+          <PropertyContextCard
+            title={property.title}
+            locationText={property.location_text}
+            address={property.address}
+            listingType={property.listing_type?.toUpperCase?.() ?? property.listing_type}
+            priceLabel={priceLabel}
+            imageUrl={property.cover_image_url}
+          />
+        ) : null}
 
-                <AppInput
-                  label="Full name"
-                  value={fullName}
-                  onChangeText={setFullName}
-                  placeholder="Enter full name"
-                  autoCapitalize="words"
-                />
+        <AppCard>
+          <View style={styles.form}>
+            <AppInput
+              label="Full name"
+              value={fullName}
+              onChangeText={setFullName}
+              placeholder="Enter full name"
+              autoCapitalize="words"
+            />
 
-                <AppInput
-                  label="Phone number"
-                  value={phone}
-                  onChangeText={setPhone}
-                  placeholder="Enter phone number"
-                  keyboardType="phone-pad"
-                />
+            <AppInput
+              label="Phone number"
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Enter phone number"
+              keyboardType="phone-pad"
+            />
 
-                <AppInput
-                  label="Message"
-                  value={message}
-                  onChangeText={setMessage}
-                  placeholder="Write your message"
-                  multiline
-                />
+            <View style={styles.contactGroup}>
+              <AppText style={styles.groupLabel}>Preferred contact method</AppText>
+
+              <View style={styles.options}>
+                {(['phone', 'whatsapp', 'email'] as const).map((option) => (
+                  <TouchableOpacity
+                    key={option}
+                    style={[styles.option, preferredContact === option && styles.optionActive]}
+                    onPress={() => setPreferredContact(option)}
+                  >
+                    <AppText
+                      style={[styles.optionText, preferredContact === option && styles.optionTextActive]}
+                    >
+                      {option.charAt(0).toUpperCase() + option.slice(1)}
+                    </AppText>
+                  </TouchableOpacity>
+                ))}
               </View>
-            </AppCard>
-
-            <View style={styles.actions}>
-              <AppButton
-                title={submitting ? 'Sending...' : 'Send In-App Message'}
-                onPress={submitInquiry}
-              />
-              <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />
             </View>
-          </>
-        )}
+
+            <AppInput
+              label="Message"
+              value={message}
+              onChangeText={setMessage}
+              placeholder="Write your message"
+              multiline
+              style={styles.messageInput}
+            />
+          </View>
+        </AppCard>
+
+        <View style={styles.actions}>
+          <AppButton
+            title={submitting ? 'Sending...' : 'Send Inquiry'}
+            onPress={submitInquiry}
+            icon="send-outline"
+          />
+          <AppButton title="Cancel" variant="secondary" onPress={() => router.back()} />
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -177,23 +208,43 @@ const styles = StyleSheet.create({
   form: {
     gap: 16,
   },
-  helperText: {
+  contactGroup: {
+    gap: 10,
+  },
+  groupLabel: {
     fontSize: 14,
-    lineHeight: 22,
-    color: colors.textMuted,
-  },
-  notice: {
-    gap: 12,
-  },
-  noticeTitle: {
-    fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '700',
     color: colors.text,
   },
-  noticeText: {
+  options: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  option: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    backgroundColor: colors.surface,
+  },
+  optionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  optionText: {
     fontSize: 14,
-    lineHeight: 22,
-    color: colors.textMuted,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  optionTextActive: {
+    color: colors.white,
+  },
+  messageInput: {
+    minHeight: 120,
+    textAlignVertical: 'top',
+    paddingTop: 14,
   },
   actions: {
     gap: 12,

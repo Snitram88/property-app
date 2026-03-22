@@ -11,6 +11,7 @@ import { AppCard } from '@/src/components/ui/AppCard';
 import { AppButton } from '@/src/components/ui/AppButton';
 import { AppText } from '@/src/components/ui/AppText';
 import { ZoomViewer } from '@/src/components/media/ZoomViewer';
+import { PropertyLocationCard } from '@/src/components/property/PropertyLocationCard';
 import { colors } from '@/src/theme/colors';
 import { radius } from '@/src/theme/radius';
 import { spacing } from '@/src/theme/spacing';
@@ -250,6 +251,14 @@ export default function PropertyDetailsScreen() {
               </AppText>
             </View>
           </AppCard>
+
+          <PropertyLocationCard
+            title={property?.title}
+            locationText={property?.location_text}
+            address={property?.address}
+            latitude={property?.latitude}
+            longitude={property?.longitude}
+          />
 
           {isGuest ? (
             <AppCard>

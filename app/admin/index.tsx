@@ -1,4 +1,4 @@
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useCallback, useMemo, useState } from 'react';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,9 +20,21 @@ import {
 } from '@/src/lib/admin/moderation';
 import { formatPrice } from '@/src/lib/properties/live-properties';
 import { useAuth } from '@/src/providers/AuthProvider';
+import { supabase } from '@/src/lib/supabase/client';
 import { colors } from '@/src/theme/colors';
 import { radius } from '@/src/theme/radius';
 import { spacing } from '@/src/theme/spacing';
+
+type KycQueueItem = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  seller_type: string | null;
+  seller_verification_status: string | null;
+  company_name: string | null;
+  whatsapp_number: string | null;
+};
 
 const STATUS_OPTIONS = [
   { label: 'All', value: '' },
@@ -43,6 +55,18 @@ function moderationVariant(status?: string | null) {
   return 'neutral';
 }
 
+function kycVariant(status?: string | null) {
+  const value = (status ?? '').toLowerCase();
+
+  if (value === 'approved') return 'verified';
+  if (value === 'rejected') return 'danger';
+  if (value === 'pending' || value === 'pending_review' || value === 'submitted') {
+    return 'warning';
+  }
+
+  return 'neutral';
+}
+
 function FilterChip({
   label,
   active,
@@ -58,6 +82,89 @@ function FilterChip({
       variant={active ? 'primary' : 'secondary'}
       onPress={onPress}
     />
+  );
+}
+
+function KycCard({
+  item,
+  onApprove,
+  onReject,
+}: {
+  item: KycQueueItem;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const status = item.seller_verification_status ?? 'pending';
+
+  return (
+    <AppCard>
+      <View style={styles.kycCard}>
+        <View style={styles.kycHeader}>
+          <View style={styles.kycIdentity}>
+            <View style={styles.avatar}>
+              <Ionicons name="person-outline" size={24} color={colors.primary} />
+            </View>
+
+            <View style={styles.kycInfo}>
+              <AppText variant="h3">{item.full_name ?? 'Unnamed seller'}</AppText>
+              <View style={styles.badges}>
+                <AppBadge label={status.replaceAll('_', ' ')} variant={kycVariant(status) as any} />
+                {item.seller_type ? (
+                  <AppBadge label={item.seller_type} variant="primary" />
+                ) : null}
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {item.email ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="mail-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>{item.email}</AppText>
+          </View>
+        ) : null}
+
+        {item.phone ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="call-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>{item.phone}</AppText>
+          </View>
+        ) : null}
+
+        {item.whatsapp_number ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="logo-whatsapp" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>{item.whatsapp_number}</AppText>
+          </View>
+        ) : null}
+
+        {item.company_name ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="business-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>{item.company_name}</AppText>
+          </View>
+        ) : null}
+
+        <View style={styles.actions}>
+          {status !== 'approved' ? (
+            <AppButton
+              title="Approve KYC"
+              variant="secondary"
+              onPress={onApprove}
+              icon="checkmark-circle-outline"
+            />
+          ) : null}
+
+          {status !== 'rejected' ? (
+            <AppButton
+              title="Reject KYC"
+              onPress={onReject}
+              icon="close-circle-outline"
+            />
+          ) : null}
+        </View>
+      </View>
+    </AppCard>
   );
 }
 
@@ -123,7 +230,8 @@ function ListingCard({
             ) : null}
 
             <AppText color={colors.textMuted}>
-              Seller: {listing.owner_name ?? 'Unknown'}{listing.owner_email ? ` • ${listing.owner_email}` : ''}
+              Seller: {listing.owner_name ?? 'Unknown'}
+              {listing.owner_email ? ` • ${listing.owner_email}` : ''}
             </AppText>
           </View>
         </View>
@@ -178,7 +286,7 @@ function ListingCard({
             />
           ) : null}
 
-          {(status === 'removed_by_admin' || status === 'suspended' || status === 'rejected') ? (
+          {status === 'removed_by_admin' || status === 'suspended' || status === 'rejected' ? (
             <AppButton
               title="Restore"
               variant="secondary"
@@ -201,7 +309,11 @@ function ListingCard({
 
 export default function AdminConsoleScreen() {
   const { roles } = useAuth();
+
+  const [kycQueue, setKycQueue] = useState<KycQueueItem[]>([]);
   const [listings, setListings] = useState<ManageableListing[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
+
   const [selectedListing, setSelectedListing] = useState<ManageableListing | null>(null);
   const [selectedAction, setSelectedAction] = useState<AdminModerationAction | null>(null);
   const [reason, setReason] = useState('');
@@ -213,29 +325,88 @@ export default function AdminConsoleScreen() {
 
   const isAdmin = roles.includes('admin');
 
+  async function loadKycQueue() {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select(
+          'id, full_name, email, phone, seller_type, seller_verification_status, company_name, whatsapp_number'
+        )
+        .in('seller_verification_status', ['pending', 'pending_review', 'submitted'])
+        .order('full_name', { ascending: true });
+
+      if (error) {
+        console.error('Failed to load KYC queue:', error);
+        return;
+      }
+
+      setKycQueue((data ?? []) as KycQueueItem[]);
+    } catch (error) {
+      console.error('Failed to load KYC queue:', error);
+    }
+  }
+
+  async function updateKycStatus(profileId: string, status: 'approved' | 'rejected') {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ seller_verification_status: status })
+        .eq('id', profileId);
+
+      if (error) {
+        Alert.alert('KYC update failed', error.message);
+        return;
+      }
+
+      await loadKycQueue();
+    } catch (error: any) {
+      Alert.alert('KYC update failed', error?.message ?? 'Please try again.');
+    }
+  }
+
   async function loadListings(next?: { query?: string; status?: string }) {
     try {
       const rows = await fetchManageableListings({
         query: next?.query ?? query,
         status: next?.status ?? statusFilter,
       });
+
       setListings(rows);
+      setHasSearched(true);
     } catch (error) {
       console.error('Failed to load admin listings:', error);
+    }
+  }
+
+  async function loadPendingQueue() {
+    try {
+      const rows = await fetchManageableListings({
+        query: '',
+        status: 'pending_review',
+      });
+
+      setQuery('');
+      setStatusFilter('pending_review');
+      setListings(rows);
+      setHasSearched(true);
+    } catch (error) {
+      console.error('Failed to load pending queue:', error);
     }
   }
 
   useFocusEffect(
     useCallback(() => {
       if (!isAdmin) return;
-      loadListings();
-    }, [isAdmin, query, statusFilter])
+      loadKycQueue();
+    }, [isAdmin])
   );
 
   const summary = useMemo(() => {
     return {
       total: listings.length,
-      pending: listings.filter((item) => (item.moderation_status ?? 'pending_review') === 'pending_review').length,
+      pending: listings.filter(
+        (item) => (item.moderation_status ?? 'pending_review') === 'pending_review'
+      ).length,
       approved: listings.filter((item) => item.moderation_status === 'approved').length,
       flagged: listings.filter((item) =>
         ['rejected', 'suspended', 'removed_by_admin'].includes(item.moderation_status ?? '')
@@ -261,6 +432,7 @@ export default function AdminConsoleScreen() {
     if (!selectedAction || !selectedListing) return;
 
     const reasonRequired = ['reject', 'suspend', 'remove'].includes(selectedAction);
+
     if (reasonRequired && !reason.trim()) {
       Alert.alert('Reason required', 'Please enter a moderation reason for this action.');
       return;
@@ -289,10 +461,7 @@ export default function AdminConsoleScreen() {
     return (
       <Screen>
         <View style={styles.restricted}>
-          <AppHeader
-            title="Admin Console"
-            subtitle="Restricted access"
-          />
+          <AppHeader title="Admin Console" subtitle="Restricted access" />
           <EmptyState
             icon="shield-outline"
             title="Admin role required"
@@ -309,86 +478,141 @@ export default function AdminConsoleScreen() {
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           <AppHeader
             title="Admin Console"
-            subtitle="Search, filter, and moderate listings at scale"
+            subtitle="KYC review plus search-first listing moderation"
           />
 
           <View style={styles.hero}>
             <AppBadge label="Moderator Mode" variant="warning" />
             <AppText variant="display">Moderation built for scale.</AppText>
             <AppText color={colors.textMuted}>
-              Search by listing reference, title, seller, or location. Filter by moderation status and act fast.
+              Review seller KYC, then search and moderate listings only when needed.
             </AppText>
 
-            <View style={styles.heroBadges}>
-              <AppBadge label={`Results ${summary.total}`} variant="primary" />
-              <AppBadge label={`Pending ${summary.pending}`} variant="warning" />
-              <AppBadge label={`Approved ${summary.approved}`} variant="verified" />
-              <AppBadge label={`Flagged ${summary.flagged}`} variant="danger" />
-            </View>
+            {hasSearched ? (
+              <View style={styles.heroBadges}>
+                <AppBadge label={`Results ${summary.total}`} variant="primary" />
+                <AppBadge label={`Pending ${summary.pending}`} variant="warning" />
+                <AppBadge label={`Approved ${summary.approved}`} variant="verified" />
+                <AppBadge label={`Flagged ${summary.flagged}`} variant="danger" />
+                <AppBadge label={`KYC Queue ${kycQueue.length}`} variant="premium" />
+              </View>
+            ) : (
+              <View style={styles.heroBadges}>
+                <AppBadge label={`KYC Queue ${kycQueue.length}`} variant="premium" />
+              </View>
+            )}
           </View>
 
-          <AppCard>
-            <View style={styles.searchPanel}>
-              <AppInput
-                label="Search listings"
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Search by LST-000001, title, seller name, seller email, or location"
-              />
+          <View style={styles.section}>
+            <AppText variant="h2">KYC Approval Queue</AppText>
+            <AppText color={colors.textMuted}>
+              Review seller verification first. This stays visible for admin review.
+            </AppText>
 
-              <View style={styles.filterWrap}>
-                {STATUS_OPTIONS.map((option) => (
-                  <View key={option.value || 'all'} style={styles.filterChip}>
-                    <FilterChip
-                      label={option.label}
-                      active={statusFilter === option.value}
-                      onPress={() => setStatusFilter(option.value)}
-                    />
-                  </View>
+            {kycQueue.length === 0 ? (
+              <EmptyState
+                icon="shield-checkmark-outline"
+                title="No pending KYC requests"
+                message="New seller verification requests will appear here."
+              />
+            ) : (
+              <View style={styles.list}>
+                {kycQueue.map((item) => (
+                  <KycCard
+                    key={item.id}
+                    item={item}
+                    onApprove={() => updateKycStatus(item.id, 'approved')}
+                    onReject={() => updateKycStatus(item.id, 'rejected')}
+                  />
                 ))}
               </View>
+            )}
+          </View>
 
-              <View style={styles.searchActions}>
-                <View style={styles.searchActionHalf}>
-                  <AppButton
-                    title="Search"
-                    onPress={() => loadListings()}
-                    icon="search-outline"
-                  />
-                </View>
-                <View style={styles.searchActionHalf}>
-                  <AppButton
-                    title="Clear"
-                    variant="secondary"
-                    onPress={() => {
-                      setQuery('');
-                      setStatusFilter('');
-                      loadListings({ query: '', status: '' });
-                    }}
-                    icon="refresh-outline"
-                  />
-                </View>
-              </View>
-            </View>
-          </AppCard>
+          <View style={styles.section}>
+            <AppText variant="h2">Listing Moderation</AppText>
+            <AppText color={colors.textMuted}>
+              Listings stay hidden until you search or intentionally load the pending queue.
+            </AppText>
 
-          {listings.length === 0 ? (
-            <EmptyState
-              icon="search-outline"
-              title="No listings found"
-              message="Try another listing reference, title, seller email, or moderation filter."
-            />
-          ) : (
-            <View style={styles.list}>
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.property_id}
-                  listing={listing}
-                  onAction={openAction}
+            <AppCard>
+              <View style={styles.searchPanel}>
+                <AppInput
+                  label="Search listings"
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Search by LST-000001, title, seller name, seller email, or location"
                 />
-              ))}
-            </View>
-          )}
+
+                <View style={styles.filterWrap}>
+                  {STATUS_OPTIONS.map((option) => (
+                    <View key={option.value || 'all'} style={styles.filterChip}>
+                      <FilterChip
+                        label={option.label}
+                        active={statusFilter === option.value}
+                        onPress={() => setStatusFilter(option.value)}
+                      />
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.searchActions}>
+                  <View style={styles.searchActionHalf}>
+                    <AppButton
+                      title="Search"
+                      onPress={() => loadListings()}
+                      icon="search-outline"
+                    />
+                  </View>
+
+                  <View style={styles.searchActionHalf}>
+                    <AppButton
+                      title="Load Pending Queue"
+                      variant="secondary"
+                      onPress={loadPendingQueue}
+                      icon="time-outline"
+                    />
+                  </View>
+                </View>
+
+                <AppButton
+                  title="Clear Results"
+                  variant="secondary"
+                  onPress={() => {
+                    setQuery('');
+                    setStatusFilter('');
+                    setListings([]);
+                    setHasSearched(false);
+                  }}
+                  icon="refresh-outline"
+                />
+              </View>
+            </AppCard>
+
+            {!hasSearched ? (
+              <EmptyState
+                icon="search-outline"
+                title="No listings loaded yet"
+                message="Search by listing reference or use Load Pending Queue to begin moderation."
+              />
+            ) : listings.length === 0 ? (
+              <EmptyState
+                icon="search-outline"
+                title="No listings found"
+                message="Try another listing reference, title, seller email, or moderation filter."
+              />
+            ) : (
+              <View style={styles.list}>
+                {listings.map((listing) => (
+                  <ListingCard
+                    key={listing.property_id}
+                    listing={listing}
+                    onAction={openAction}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
         </ScrollView>
       </Screen>
 
@@ -430,6 +654,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  section: {
+    gap: spacing.md,
+  },
+  kycCard: {
+    gap: spacing.md,
+  },
+  kycHeader: {
+    gap: spacing.sm,
+  },
+  kycIdentity: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  kycInfo: {
+    flex: 1,
+    gap: spacing.xs,
   },
   searchPanel: {
     gap: spacing.md,

@@ -89,6 +89,7 @@ export default function PublicHomeScreen() {
     setStateValue('');
     setPropertyType('');
     setListingType('');
+    setShowMoreFilters(false);
   }
 
   function openAuthGate(reason: string) {
@@ -126,7 +127,11 @@ export default function PublicHomeScreen() {
                 <AppButton
                   title="List Property"
                   variant="secondary"
-                  onPress={() => openAuthGate('Listing a property requires an account so we can onboard you as a seller and verify your identity.')}
+                  onPress={() =>
+                    openAuthGate(
+                      'Listing a property requires an account so we can onboard you as a seller and verify your identity.'
+                    )
+                  }
                   icon="add-circle-outline"
                 />
               </View>
@@ -147,21 +152,25 @@ export default function PublicHomeScreen() {
             </AppText>
           </View>
 
-          <View style={styles.formGroup}>
-            <AppInput
-              label="City"
-              value={city}
-              onChangeText={setCity}
-              placeholder="e.g. Ikeja"
-              autoCapitalize="words"
-            />
-            <AppInput
-              label="Area / Address"
-              value={area}
-              onChangeText={setArea}
-              placeholder="e.g. Yaba, Lekki"
-              autoCapitalize="words"
-            />
+          <View style={styles.row}>
+            <View style={styles.col}>
+              <AppInput
+                label="City"
+                value={city}
+                onChangeText={setCity}
+                placeholder="e.g. Ikeja"
+                autoCapitalize="words"
+              />
+            </View>
+            <View style={styles.col}>
+              <AppInput
+                label="Area / Address"
+                value={area}
+                onChangeText={setArea}
+                placeholder="e.g. Yaba, Lekki"
+                autoCapitalize="words"
+              />
+            </View>
           </View>
 
           <View style={styles.filterSection}>
@@ -172,36 +181,46 @@ export default function PublicHomeScreen() {
                   <HeroChip
                     label={item.label}
                     active={listingType === item.value}
-                    onPress={() => setListingType((current) => (current === item.value ? '' : item.value))}
+                    onPress={() =>
+                      setListingType((current) => (current === item.value ? '' : item.value))
+                    }
                   />
                 </View>
               ))}
             </View>
           </View>
 
-          <AppButton
-            title={showMoreFilters ? 'Hide More Filters' : 'More Filters'}
-            variant="secondary"
-            onPress={() => setShowMoreFilters((prev) => !prev)}
-            icon={showMoreFilters ? 'chevron-up-outline' : 'options-outline'}
-          />
+          <View style={styles.moreFilterRow}>
+            <View style={styles.moreFilterButton}>
+              <AppButton
+                title={showMoreFilters ? 'Hide Filters' : 'More Filters'}
+                variant="secondary"
+                onPress={() => setShowMoreFilters((prev) => !prev)}
+                icon={showMoreFilters ? 'chevron-up-outline' : 'options-outline'}
+              />
+            </View>
+          </View>
 
           {showMoreFilters ? (
-            <View style={styles.moreFilters}>
-              <AppInput
-                label="State"
-                value={stateValue}
-                onChangeText={setStateValue}
-                placeholder="e.g. Lagos"
-                autoCapitalize="words"
-              />
-              <AppInput
-                label="Property Type"
-                value={propertyType}
-                onChangeText={setPropertyType}
-                placeholder="e.g. Duplex, Flat, Land"
-                autoCapitalize="words"
-              />
+            <View style={styles.row}>
+              <View style={styles.col}>
+                <AppInput
+                  label="State"
+                  value={stateValue}
+                  onChangeText={setStateValue}
+                  placeholder="e.g. Lagos"
+                  autoCapitalize="words"
+                />
+              </View>
+              <View style={styles.col}>
+                <AppInput
+                  label="Property Type"
+                  value={propertyType}
+                  onChangeText={setPropertyType}
+                  placeholder="e.g. Duplex, Flat, Land"
+                  autoCapitalize="words"
+                />
+              </View>
             </View>
           ) : null}
 
@@ -263,7 +282,9 @@ export default function PublicHomeScreen() {
                     ? formatPrice(property.price)
                     : `${formatPrice(property.price)} / year`
                 }
-                listingType={property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)}
+                listingType={
+                  property.listing_type.charAt(0).toUpperCase() + property.listing_type.slice(1)
+                }
                 beds={property.bedrooms}
                 baths={property.bathrooms}
                 imageUrl={property.cover_image_url}
@@ -333,30 +354,40 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   searchPanel: {
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   searchHeader: {
-    gap: spacing.xs,
+    gap: 4,
   },
   searchTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
   },
-  formGroup: {
-    gap: spacing.md,
-  },
-  filterSection: {
+  row: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
+  col: {
+    flex: 1,
+  },
+  filterSection: {
+    gap: spacing.xs,
+  },
   preferenceRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
   },
   preferenceButton: {
-    marginBottom: spacing.xs,
+    minWidth: 92,
+    flexGrow: 1,
   },
-  moreFilters: {
-    gap: spacing.md,
+  moreFilterRow: {
+    alignItems: 'flex-start',
+  },
+  moreFilterButton: {
+    minWidth: 150,
   },
   actionRow: {
     flexDirection: 'row',

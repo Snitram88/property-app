@@ -26,14 +26,21 @@ import { radius } from '@/src/theme/radius';
 import { spacing } from '@/src/theme/spacing';
 
 type KycQueueItem = {
-  id: string;
+  submission_id: string;
+  user_id: string;
   full_name: string | null;
   email: string | null;
   phone: string | null;
   seller_type: string | null;
-  seller_verification_status: string | null;
-  company_name: string | null;
-  whatsapp_number: string | null;
+  status: string | null;
+  business_name: string | null;
+  company_registration_number: string | null;
+  government_id_number: string | null;
+  contact_address: string | null;
+  city: string | null;
+  state: string | null;
+  notes: string | null;
+  submitted_at: string | null;
 };
 
 const STATUS_OPTIONS = [
@@ -58,9 +65,14 @@ function moderationVariant(status?: string | null) {
 function kycVariant(status?: string | null) {
   const value = (status ?? '').toLowerCase();
 
-  if (value === 'approved') return 'verified';
+  if (value === 'verified' || value === 'approved') return 'verified';
   if (value === 'rejected') return 'danger';
-  if (value === 'pending' || value === 'pending_review' || value === 'submitted') {
+  if (
+    value === 'pending_kyc' ||
+    value === 'pending' ||
+    value === 'pending_review' ||
+    value === 'submitted'
+  ) {
     return 'warning';
   }
 
@@ -94,7 +106,7 @@ function KycCard({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const status = item.seller_verification_status ?? 'pending';
+  const status = item.status ?? 'pending';
 
   return (
     <AppCard>
@@ -131,22 +143,44 @@ function KycCard({
           </View>
         ) : null}
 
-        {item.whatsapp_number ? (
+        {item.business_name ? (
           <View style={styles.infoRow}>
-            <Ionicons name="logo-whatsapp" size={15} color={colors.textMuted} />
-            <AppText color={colors.textMuted}>{item.whatsapp_number}</AppText>
+            <Ionicons name="business-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>{item.business_name}</AppText>
           </View>
         ) : null}
 
-        {item.company_name ? (
+        {item.contact_address ? (
           <View style={styles.infoRow}>
-            <Ionicons name="business-outline" size={15} color={colors.textMuted} />
-            <AppText color={colors.textMuted}>{item.company_name}</AppText>
+            <Ionicons name="location-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>
+              {item.contact_address}
+              {item.city ? `, ${item.city}` : ''}
+              {item.state ? `, ${item.state}` : ''}
+            </AppText>
+          </View>
+        ) : null}
+
+        {item.company_registration_number ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="document-text-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>
+              Reg No: {item.company_registration_number}
+            </AppText>
+          </View>
+        ) : null}
+
+        {item.government_id_number ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="card-outline" size={15} color={colors.textMuted} />
+            <AppText color={colors.textMuted}>
+              Gov ID: {item.government_id_number}
+            </AppText>
           </View>
         ) : null}
 
         <View style={styles.actions}>
-          {status !== 'approved' ? (
+          {status !== 'verified' && status !== 'approved' ? (
             <AppButton
               title="Approve KYC"
               variant="secondary"
@@ -327,31 +361,28 @@ export default function AdminConsoleScreen() {
 
   async function loadKycQueue() {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(
-          'id, full_name, email, phone, seller_type, seller_verification_status, company_name, whatsapp_number'
-        )
-        .in('seller_verification_status', ['pending', 'pending_review', 'submitted'])
-        .order('full_name', { ascending: true });
+      const { data, error } = await supabase.rpc('admin_get_kyc_queue');
 
       if (error) {
         console.error('Failed to load KYC queue:', error);
+        Alert.alert('KYC queue error', error.message ?? 'Failed to load KYC queue');
         return;
       }
 
+      console.log('KYC queue rows:', data);
       setKycQueue((data ?? []) as KycQueueItem[]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to load KYC queue:', error);
+      Alert.alert('KYC queue error', error?.message ?? 'Failed to load KYC queue');
     }
   }
 
-  async function updateKycStatus(profileId: string, status: 'approved' | 'rejected') {
+  async function updateKycStatus(userId: string, status: 'verified' | 'rejected') {
     try {
       const { error } = await supabase
         .from('profiles')
         .update({ seller_verification_status: status })
-        .eq('id', profileId);
+        .eq('id', userId);
 
       if (error) {
         Alert.alert('KYC update failed', error.message);
@@ -519,10 +550,10 @@ export default function AdminConsoleScreen() {
               <View style={styles.list}>
                 {kycQueue.map((item) => (
                   <KycCard
-                    key={item.id}
+                    key={item.submission_id}
                     item={item}
-                    onApprove={() => updateKycStatus(item.id, 'approved')}
-                    onReject={() => updateKycStatus(item.id, 'rejected')}
+                    onApprove={() => updateKycStatus(item.user_id, 'verified')}
+                    onReject={() => updateKycStatus(item.user_id, 'rejected')}
                   />
                 ))}
               </View>
